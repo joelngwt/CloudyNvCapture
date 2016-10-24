@@ -1,0 +1,13 @@
+LIBRARY	DXGI.DLL
+
+EXPORTS
+	DXGIDumpJournal
+	CreateDXGIFactory1 = CreateDXGIFactory1_Proxy
+	CreateDXGIFactory2 = CreateDXGIFactory2_Proxy
+	CreateDXGIFactory = CreateDXGIFactory_Proxy
+	DXGID3D10CreateDevice
+	DXGID3D10CreateLayeredDevice
+	DXGID3D10GetLayeredDeviceSize
+	DXGID3D10RegisterLayers
+	DXGIGetDebugInterface1 = DXGIGetDebugInterface1_Proxy
+	DXGIReportAdapterConfiguration

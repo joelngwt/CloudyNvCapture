@@ -1,0 +1,16 @@
+
+glutInit              func
+glutSetOption         func
+glutInitDisplayMode   func
+glutInitWindowSize    func
+glutCloseFunc         func
+glutCreateWindow      func
+glutDisplayFunc       func
+glutReshapeFunc       func
+glutIdleFunc          func
+glutMainLoop          func
+glutBitmapHelvetica12 func
+glutBitmapString      func
+glutSwapBuffers       func
+glutVisibilityFunc    func
+glutKeyboardFunc      func
