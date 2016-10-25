@@ -93,6 +93,8 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
     args.yuvFile = NULL;
 	args.port = 30000;
 	args.numPlayers = 1;
+	args.numRows = 1;
+	args.numCols = 1;
 
     for(int cnt = 1; cnt < argc; ++cnt)
     {
@@ -245,6 +247,20 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
 			}
 			args.numPlayers = atoi(argv[cnt]);
 		}
+		else if (0 == _stricmp(argv[cnt], "-layout"))
+		{
+			if ((cnt + 2) >= argc)
+			{
+				printf("Missing -layout options\n");
+				printHelp();
+				return false;
+			}
+
+			args.numRows = atoi(argv[cnt + 1]);
+			args.numCols = atoi(argv[cnt + 2]);
+
+			cnt += 2;
+		}
         else
         {
             printf("Unexpected argument %s\n", argv[cnt]);
@@ -350,14 +366,17 @@ int main(int argc, char* argv[])
 			++cnt;
             outName = args.sBaseName + "_" + _itoa(cnt, frameNo, 10) + ".bmp";
 
+			int row = 0;
+			int col = 0;
+
 			for (int i = 0; i < args.numPlayers; ++i)
-			{
+			{			
 				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
 				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
 				fbcSysGrabParams.dwTargetWidth = args.iWidth;
 				fbcSysGrabParams.dwTargetHeight = args.iHeight;
-				fbcSysGrabParams.dwStartX = args.iStartX + args.iWidth*i;
-				fbcSysGrabParams.dwStartY = args.iStartY;
+				fbcSysGrabParams.dwStartX = args.iStartX + args.iWidth*col;
+				fbcSysGrabParams.dwStartY = args.iStartY + args.iHeight*row;
 				fbcSysGrabParams.eGMode = args.gmMode;
 				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
 
@@ -367,7 +386,15 @@ int main(int argc, char* argv[])
 				{
 					bRecoveryDone = FALSE;
 					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3/2, 1, PipeList[i]);
-					fflush(PipeList[i]);
+					//fflush(PipeList[i]);
+				}
+
+				++col;
+
+				if (col >= args.numCols)
+				{
+					col = 0;
+					++row;
 				}
 			}
 
