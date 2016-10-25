@@ -29,6 +29,7 @@
 
 #include <sstream>
 #include <ctime>
+#include <vector>
 
 // Structure to store the command line arguments
 struct AppArguments
@@ -44,7 +45,10 @@ struct AppArguments
     NVFBCToSysBufferFormat bfFormat; // Output buffer format
     std::string sBaseName; // Output file name
     FILE*       yuvFile;
-	int   port; // Port to stream to
+	int   port; // Port to stream to. Defaults to 30000
+	int   numPlayers; // Number of players to stream to. // Defaults to 1
+	int   numRows; // Number of columns in the split screen
+	int   numCols; // Number of rows in the split screen
 };
 
 // Prints the help message
@@ -68,6 +72,8 @@ void printHelp()
            "                        default is bmp output\n");
 	printf("  -port                The port to stream to.\n");
 	printf("                       Should be between 30000 and 30005.");
+	printf("  -players             The number of players to stream to. Defaults to 30000.\n");
+	printf("                       Should be between 1 and 6. Defaults to 1.");
     printf("  -nowait              Grab with the no wait flag\n");
 }
 
@@ -86,6 +92,7 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
     args.sBaseName = "NvFBCToSys";
     args.yuvFile = NULL;
 	args.port = 30000;
+	args.numPlayers = 1;
 
     for(int cnt = 1; cnt < argc; ++cnt)
     {
@@ -226,6 +233,18 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
 			}
 			args.port = atoi(argv[cnt]);
 		}
+		else if (0 == _stricmp(argv[cnt], "-players"))
+		{
+			++cnt;
+
+			if (cnt >= argc)
+			{
+				printf("Missing -players option\n");
+				printHelp();
+				return false;
+			}
+			args.numPlayers = atoi(argv[cnt]);
+		}
         else
         {
             printf("Unexpected argument %s\n", argv[cnt]);
@@ -262,6 +281,8 @@ int main(int argc, char* argv[])
     unsigned char *diffMap = NULL;
     char frameNo[10];
     std::string outName;
+
+	std::vector<FILE*> PipeList;
     
     if(!parseCmdLine(argc, argv, args))
         return -1;
@@ -292,18 +313,18 @@ int main(int argc, char* argv[])
     fbcSysSetupParams.ppBuffer = (void **)&frameBuffer;
     fbcSysSetupParams.ppDiffMap = NULL;
 
-	std::stringstream *StringStream = new std::stringstream();
-	
-	// Writing desktop capture to local disk. FFMPEG encoding.
-	//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -r 25 -s 1024x768 -i - -r 25 -f mp4 -an foo.mp4";
-	// FFMPEG Encoding
-	*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -preset ultrafast -f flv -an -tune zerolatency http://172.26.186.80:" << args.port;
-	// Nvidia Encoding
-	//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1680x1050 -re -i - -listen 1 -c:v h264_nvenc -f avi -an -tune zerolatency http://172.26.186.80:30000";
+	for (int i = 0; i < args.numPlayers; ++i)
+	{
+		std::stringstream *StringStream = new std::stringstream();
+		// Writing desktop capture to local disk. FFMPEG encoding.
+		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -r 25 -s 1024x768 -i - -r 25 -f mp4 -an foo.mp4";
+		// FFMPEG Encoding
+		*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -preset ultrafast -f flv -an -tune zerolatency http://172.26.186.80:" << args.port + i;
+		// Nvidia Encoding
+		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1680x1050 -re -i - -listen 1 -c:v h264_nvenc -f avi -an -tune zerolatency http://172.26.186.80:30000";
 
-
-	FILE* ThePipe = _popen(StringStream->str().c_str(), "wb");
-
+		PipeList.push_back(_popen(StringStream->str().c_str(), "wb"));
+	}
 
     status = nvfbcToSys->NvFBCToSysSetUp(&fbcSysSetupParams);
     if (status == NVFBC_SUCCESS)
@@ -317,25 +338,95 @@ int main(int argc, char* argv[])
 		int cnt = 0;
 		while (true)
         {
+			// Problem: How to cut out 6 buffers from the original?
+			// Use original given API: fbcSysGrabParams?
+			// Somehow divide the char array of frameBuffer?
+			
+			// Have to pass the number of rows and columns to args.
+			// Then, when calling NvFBCToSys.exe, also pass the number of players.
+			// Based on the number of players, rows, and columns, iStartX and iStartY will be determined.
+			// iWidth and iHeight should be constant.
+
 			++cnt;
             outName = args.sBaseName + "_" + _itoa(cnt, frameNo, 10) + ".bmp";
+
+			for (int i = 0; i < args.numPlayers; ++i)
+			{
+				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
+				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
+				fbcSysGrabParams.dwTargetWidth = args.iWidth;
+				fbcSysGrabParams.dwTargetHeight = args.iHeight;
+				fbcSysGrabParams.dwStartX = args.iStartX + args.iWidth*i;
+				fbcSysGrabParams.dwStartY = args.iStartY;
+				fbcSysGrabParams.eGMode = args.gmMode;
+				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
+
+				status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
+				// Then, fwrite the frame buffer to player 1 (pipe1) (need 1 pipe per player. 1 pipe = 1 ffmpeg streamer)
+				if (status == NVFBC_SUCCESS)
+				{
+					bRecoveryDone = FALSE;
+					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3/2, 1, PipeList[i]);
+					fflush(PipeList[i]);
+				}
+			}
+
+			//--------------
+			// Player 1?
             //! Grab the frame.  
             // If scaling or cropping is enabled the width and height returned in the
             // NvFBCFrameGrabInfo structure reflect the current desktop resolution, not the actual grabbed size.
-            fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
-            fbcSysGrabParams.dwFlags = args.iSetUpFlags;
-            fbcSysGrabParams.dwTargetWidth = args.iWidth;
-            fbcSysGrabParams.dwTargetHeight = args.iHeight;
-            fbcSysGrabParams.dwStartX = args.iStartX;
-            fbcSysGrabParams.dwStartY = args.iStartY;
-            fbcSysGrabParams.eGMode = args.gmMode;
-            fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
-        
-            status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
+			/*
+			if (args.numPlayers >= 1)
+			{
+				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
+				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
+				fbcSysGrabParams.dwTargetWidth = args.iWidth;
+				fbcSysGrabParams.dwTargetHeight = args.iHeight;
+				fbcSysGrabParams.dwStartX = args.iStartX;
+				fbcSysGrabParams.dwStartY = args.iStartY;
+				fbcSysGrabParams.eGMode = args.gmMode;
+				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
+
+				status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
+				// Then, fwrite the frame buffer to player 1 (pipe1) (need 1 pipe per player. 1 pipe = 1 ffmpeg streamer)
+				if (status == NVFBC_SUCCESS)
+				{
+					bRecoveryDone = FALSE;
+					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3 / 2, 1, PipeList[0]);
+					fflush(PipeList[0]);
+				}
+			}
+            
+			//----------
+			// Then, setup fbcSysGrabParams again, with different iStartX and iStartY.
+			// Then, status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams); again?
+			// Then, fwrite to player 2, pipe 2.
+			if (args.numPlayers >= 2)
+			{
+				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
+				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
+				fbcSysGrabParams.dwTargetWidth = args.iWidth;
+				fbcSysGrabParams.dwTargetHeight = args.iHeight;
+				fbcSysGrabParams.dwStartX = args.iStartX + args.iWidth;
+				fbcSysGrabParams.dwStartY = args.iStartY;
+				fbcSysGrabParams.eGMode = args.gmMode;
+				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
+
+				status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
+				if (status == NVFBC_SUCCESS)
+				{
+					bRecoveryDone = FALSE;
+					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3 / 2, 1, PipeList[1]);
+					fflush(PipeList[1]);
+				}
+			}*/
+			//----------
+			
             if (status == NVFBC_SUCCESS)
             {
-                bRecoveryDone = FALSE;
-
+                /*bRecoveryDone = FALSE;
+				
                 //! Save the frame to disk
                 switch(args.bfFormat)
                 {
@@ -362,7 +453,7 @@ int main(int argc, char* argv[])
                     break;
 
                 case NVFBC_TOSYS_YYYYUV420p:
-                    if(ThePipe/*args.yuvFile*/) {
+                    if(ThePipe) {//args.yuvFile) {
                         //fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight*3/2, 1, args.yuvFile); // Original code
 
 
@@ -403,7 +494,7 @@ int main(int argc, char* argv[])
                 default:
                     fprintf (stderr, "Un-expected grab format %d.", args.bfFormat);
                     break;
-                }
+                }*/
             }
             else
             {
@@ -458,14 +549,17 @@ int main(int argc, char* argv[])
     //! Relase the NvFBCToSys object
     nvfbcToSys->NvFBCToSysRelease();
 
-    if(args.yuvFile) {
+	if (args.yuvFile) {
 		clock_t end = clock();
 		double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
 		fprintf(stderr, "Time taken: %f", elapsed_secs);
-        //fclose(args.yuvFile);
-		fflush(ThePipe);
-		_pclose(ThePipe);
-    }
+		//fclose(args.yuvFile);
+		for (int i = 0; i < PipeList.size(); ++i)
+		{
+			fflush(PipeList[i]);
+			_pclose(PipeList[i]);
+		}
+	}
 
     return 0;
 }
