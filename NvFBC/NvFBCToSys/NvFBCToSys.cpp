@@ -85,10 +85,10 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
     args.iStartY = 0;
     args.iWidth = 0;
     args.iHeight = 0;
-    args.iSetUpFlags = NVFBC_TOSYS_NOFLAGS;
-    args.bHWCursor = false;
+	args.iSetUpFlags = NVFBC_TOSYS_NOFLAGS | NVFBC_TOSYS_NOWAIT;
+    args.bHWCursor = true;
     args.gmMode = NVFBC_TOSYS_SOURCEMODE_FULL;
-    args.bfFormat = NVFBC_TOSYS_ARGB;
+	args.bfFormat = NVFBC_TOSYS_YYYYUV420p;
     args.sBaseName = "NvFBCToSys";
     args.yuvFile = NULL;
 	args.port = 30000;
@@ -281,9 +281,6 @@ bool parseCmdLine(int argc, char **argv, AppArguments &args)
  */
 int main(int argc, char* argv[])
 {
-	using namespace std;
-	clock_t begin = clock();
-
     AppArguments args;
 
     NvFBCLibrary nvfbcLibrary;
@@ -354,15 +351,6 @@ int main(int argc, char* argv[])
 		int cnt = 0;
 		while (true)
         {
-			// Problem: How to cut out 6 buffers from the original?
-			// Use original given API: fbcSysGrabParams?
-			// Somehow divide the char array of frameBuffer?
-			
-			// Have to pass the number of rows and columns to args.
-			// Then, when calling NvFBCToSys.exe, also pass the number of players.
-			// Based on the number of players, rows, and columns, iStartX and iStartY will be determined.
-			// iWidth and iHeight should be constant.
-
 			++cnt;
             outName = args.sBaseName + "_" + _itoa(cnt, frameNo, 10) + ".bmp";
 
@@ -397,131 +385,10 @@ int main(int argc, char* argv[])
 					++row;
 				}
 			}
-
-			//--------------
-			// Player 1?
-            //! Grab the frame.  
-            // If scaling or cropping is enabled the width and height returned in the
-            // NvFBCFrameGrabInfo structure reflect the current desktop resolution, not the actual grabbed size.
-			/*
-			if (args.numPlayers >= 1)
-			{
-				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
-				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
-				fbcSysGrabParams.dwTargetWidth = args.iWidth;
-				fbcSysGrabParams.dwTargetHeight = args.iHeight;
-				fbcSysGrabParams.dwStartX = args.iStartX;
-				fbcSysGrabParams.dwStartY = args.iStartY;
-				fbcSysGrabParams.eGMode = args.gmMode;
-				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
-
-				status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
-				// Then, fwrite the frame buffer to player 1 (pipe1) (need 1 pipe per player. 1 pipe = 1 ffmpeg streamer)
-				if (status == NVFBC_SUCCESS)
-				{
-					bRecoveryDone = FALSE;
-					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3 / 2, 1, PipeList[0]);
-					fflush(PipeList[0]);
-				}
-			}
-            
-			//----------
-			// Then, setup fbcSysGrabParams again, with different iStartX and iStartY.
-			// Then, status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams); again?
-			// Then, fwrite to player 2, pipe 2.
-			if (args.numPlayers >= 2)
-			{
-				fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
-				fbcSysGrabParams.dwFlags = args.iSetUpFlags;
-				fbcSysGrabParams.dwTargetWidth = args.iWidth;
-				fbcSysGrabParams.dwTargetHeight = args.iHeight;
-				fbcSysGrabParams.dwStartX = args.iStartX + args.iWidth;
-				fbcSysGrabParams.dwStartY = args.iStartY;
-				fbcSysGrabParams.eGMode = args.gmMode;
-				fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
-
-				status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
-				if (status == NVFBC_SUCCESS)
-				{
-					bRecoveryDone = FALSE;
-					fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3 / 2, 1, PipeList[1]);
-					fflush(PipeList[1]);
-				}
-			}*/
-			//----------
 			
             if (status == NVFBC_SUCCESS)
             {
-                /*bRecoveryDone = FALSE;
-				
-                //! Save the frame to disk
-                switch(args.bfFormat)
-                {
-                case NVFBC_TOSYS_ARGB:
-                    SaveARGB(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight, grabInfo.dwBufferWidth);
-                    fprintf (stderr, "Grab succeeded. Wrote %s as ARGB.\n", outName.c_str() );
-                    break;
-
-                case NVFBC_TOSYS_RGB:
-                    SaveRGB(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight, grabInfo.dwBufferWidth);
-
-                    fprintf (stderr, "Grab succeeded. Wrote %s as RGB.\n", outName.c_str());
-                    break;
-
-                case NVFBC_TOSYS_YUV444p:
-                    if(args.yuvFile) {
-						//fprintf(stderr, "Making YUV444 file\n");
-						fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3, 1, args.yuvFile);
-                    }
-                    else {
-                        SaveYUV444(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight);
-                        fprintf (stderr, "Grab succeeded. Wrote %s as YUV444 converted to RGB.\n", outName.c_str());
-                    }
-                    break;
-
-                case NVFBC_TOSYS_YYYYUV420p:
-                    if(ThePipe) {//args.yuvFile) {
-                        //fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight*3/2, 1, args.yuvFile); // Original code
-
-
-						//fprintf(stderr, "Frame %d. Sending to ffmpeg\n", cnt);
-						fwrite(frameBuffer, grabInfo.dwWidth*grabInfo.dwHeight * 3 / 2, 1, ThePipe);
-						//fprintf(stderr, "Frame %d. done\n", cnt);
-						fflush(ThePipe);
-						//fprintf(stderr, "Frame %d. Making YUV420 file\n", cnt);
-                    }
-                    else {
-                        SaveYUV420(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight);
-                        fprintf (stderr, "Grab succeeded. Wrote %s as YYYYUV420p.\n", outName.c_str() );
-                    }
-                    break;
-
-                case NVFBC_TOSYS_RGB_PLANAR:
-                    SaveRGBPlanar(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight);
-                    fprintf (stderr, "Grab succeeded. Wrote %s as RGB_PLANAR.\n", outName.c_str() );
-                break;
-
-                case NVFBC_TOSYS_XOR:
-                    // The second grab results in the XOR of the first and second frame.
-                    fbcSysGrabParams.dwVersion = NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER;
-                    fbcSysGrabParams.dwFlags = args.iSetUpFlags;
-                    fbcSysGrabParams.dwTargetWidth = args.iWidth;
-                    fbcSysGrabParams.dwTargetHeight = args.iHeight;
-                    fbcSysGrabParams.dwStartX = 0;
-                    fbcSysGrabParams.dwStartY = 0;
-                    fbcSysGrabParams.eGMode = args.gmMode;
-                    fbcSysGrabParams.pNvFBCFrameGrabInfo = &grabInfo;
-                    status = nvfbcToSys->NvFBCToSysGrabFrame(&fbcSysGrabParams);
-                    if (status == NVFBC_SUCCESS)
-                        SaveRGB(outName.c_str(), frameBuffer, grabInfo.dwWidth, grabInfo.dwHeight, grabInfo.dwBufferWidth);
-
-                    fprintf (stderr, "Grab succeeded. Wrote %s as XOR.\n", outName.c_str() );
-                    break;
-
-                default:
-                    fprintf (stderr, "Un-expected grab format %d.", args.bfFormat);
-                    break;
-                }*/
+                bRecoveryDone = FALSE;
             }
             else
             {
@@ -577,9 +444,6 @@ int main(int argc, char* argv[])
     nvfbcToSys->NvFBCToSysRelease();
 
 	if (args.yuvFile) {
-		clock_t end = clock();
-		double elapsed_secs = double(end - begin) / CLOCKS_PER_SEC;
-		fprintf(stderr, "Time taken: %f", elapsed_secs);
 		//fclose(args.yuvFile);
 		for (int i = 0; i < PipeList.size(); ++i)
 		{
