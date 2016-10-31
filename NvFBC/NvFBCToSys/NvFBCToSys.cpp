@@ -331,10 +331,10 @@ int main(int argc, char* argv[])
 		std::stringstream *StringStream = new std::stringstream();
 		// Writing desktop capture to local disk. FFMPEG encoding.
 		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -r 25 -s 1024x768 -i - -r 25 -f mp4 -an foo.mp4";
-		// FFMPEG Encoding
-		*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -preset ultrafast -f flv -an -tune zerolatency http://172.26.186.80:" << args.port + i;
-		// Nvidia Encoding
-		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1680x1050 -re -i - -listen 1 -c:v h264_nvenc -f avi -an -tune zerolatency http://172.26.186.80:30000";
+
+		*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -c:v libx264 -threads 1 -preset ultrafast -an -tune zerolatency -x264opts crf=2:vbv-maxrate=3000:vbv-bufsize=120:intra-refresh=1:slice-max-size=1500:keyint=30:ref=1 -f mpegts http://172.26.186.80:" << args.port + i;
+		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -c:v mpeg2video -an -q:v 2 -g 1 -f mpegts http://172.26.186.80:" << args.port + i;
+		//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << args.iWidth << "x" << args.iHeight << " -re -i - -listen 1 -c:v libvpx-vp9 -quality realtime -cpu-used 5 -b:v 3000k -an -f webm http://172.26.186.80:" << args.port + i;
 
 		PipeList.push_back(_popen(StringStream->str().c_str(), "wb"));
 	}
