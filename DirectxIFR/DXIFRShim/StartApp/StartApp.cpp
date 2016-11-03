@@ -43,22 +43,18 @@ void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, i
 		if (!_stricmp(argv[iArg], "-r")) {
 			if (iArg + 1 < argc && 
 				(iResolution = FindMatchedResolution(argv[++iArg])) != -1) {
-					printf("HI 1\n");
 					continue;
 			}
-			printf("WRONG 1\n");
 			ShowUsageAndExit(argv[0]);
 		}
 
 		if (!_stricmp(argv[iArg], "-gpu")) {
 			if (iArg + 1 >= argc) {
-				printf("WRONG 1.5\n");
 				ShowUsageAndExit(argv[0]);
 			}
 			str = argv[++iArg];
 			iGpu = strtol(str, &pEnd, 10);
 			if (pEnd == str || *pEnd != '\0' || iGpu < 0) {
-				printf("WRONG 2\n");
 				ShowUsageAndExit(argv[0]);
 			}
 			continue;
@@ -66,13 +62,11 @@ void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, i
 
 		if (!_stricmp(argv[iArg], "-audio")) {
 			if (iArg + 1 >= argc) {
-				printf("WRONG 3\n");
 				ShowUsageAndExit(argv[0]);
 			}
 			str = argv[++iArg];
 			iAudio = strtol(str, &pEnd, 10);
 			if (pEnd == str || *pEnd != '\0' || iAudio < 0) {
-				printf("WRONG 4\n");
 				ShowUsageAndExit(argv[0]);
 			}
 			continue;
@@ -90,7 +84,6 @@ void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, i
 
 	if (iArg == argc) {
 		//No application program command line
-		printf("WRONG 5\n");
 		ShowUsageAndExit(argv[0]);
 	}
 }
