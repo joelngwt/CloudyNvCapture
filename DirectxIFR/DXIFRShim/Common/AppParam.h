@@ -38,6 +38,11 @@ struct AppParam
 	BOOL bEnableYUV444Encoding;
 	DWORD eRateControl;
 	DWORD ePresetConfig;
+	int numPlayers;
+	int rows;
+	int cols;
+	int splitHeight;
+	int splitWidth;
 
 	char szStreamingDest[80];
 

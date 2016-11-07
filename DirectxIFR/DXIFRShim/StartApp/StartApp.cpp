@@ -17,7 +17,9 @@ simplelogger::Logger *logger
 void ShowUsageAndExit(char *szExeName) 
 {
 	printf(
-		"Usage: %s -r <WxH> -gpu <gpu number> -audio <audio number> -hevc <application command line>\n"
+		"Usage: %s -r <WxH> -gpu <gpu number> -audio <audio number> -hevc <application command line> -players <number of players> " \
+		"-rows <number of split screen rows> -cols <number of split screen columns> -width <width of a single split screen> " \
+		"-height <height of a single split screen>\n"
 		"-hevc is optional", szExeName);
 	exit(0);
 }
@@ -36,7 +38,8 @@ static int FindMatchedResolution(char *szResolution)
 	return -1;
 }
 
-void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, int &iAudio, BOOL &bHEVC) 
+void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, int &iAudio, 
+			   int &iNumPlayers, int &iCols, int &iRows, int &iSplitWidth, int &iSplitHeight, BOOL &bHEVC)
 {
 	char *str, *pEnd;
 	for (iArg = 1; iArg < argc; iArg++) {
@@ -67,6 +70,66 @@ void ParseArgs(int argc, char *argv[], int &iArg, int &iResolution, int &iGpu, i
 			str = argv[++iArg];
 			iAudio = strtol(str, &pEnd, 10);
 			if (pEnd == str || *pEnd != '\0' || iAudio < 0) {
+				ShowUsageAndExit(argv[0]);
+			}
+			continue;
+		}
+
+		if (!_stricmp(argv[iArg], "-players")) {
+			if (iArg + 1 >= argc) {
+				ShowUsageAndExit(argv[0]);
+			}
+			str = argv[++iArg];                                                                                                                         
+			iNumPlayers = strtol(str, &pEnd, 10);
+			if (pEnd == str || *pEnd != '\0' || iNumPlayers <= 0) {
+				ShowUsageAndExit(argv[0]);
+			}
+			continue;
+		}
+
+		if (!_stricmp(argv[iArg], "-cols")) {
+			if (iArg + 1 >= argc) {
+				ShowUsageAndExit(argv[0]);
+			}
+			str = argv[++iArg];
+			iCols = strtol(str, &pEnd, 10);
+			if (pEnd == str || *pEnd != '\0' || iCols <= 0) {
+				ShowUsageAndExit(argv[0]);
+			}
+			continue;
+		}
+
+		if (!_stricmp(argv[iArg], "-rows")) {
+			if (iArg + 1 >= argc) {
+				ShowUsageAndExit(argv[0]);
+			}
+			str = argv[++iArg];
+			iRows = strtol(str, &pEnd, 10);
+			if (pEnd == str || *pEnd != '\0' || iRows <= 0) {
+				ShowUsageAndExit(argv[0]);
+			}
+			continue;
+		}
+
+		if (!_stricmp(argv[iArg], "-width")) {
+			if (iArg + 1 >= argc) {
+				ShowUsageAndExit(argv[0]);
+			}
+			str = argv[++iArg];
+			iSplitWidth = strtol(str, &pEnd, 10);
+			if (pEnd == str || *pEnd != '\0' || iSplitWidth <= 0) {
+				ShowUsageAndExit(argv[0]);
+			}
+			continue;
+		}
+
+		if (!_stricmp(argv[iArg], "-height")) {
+			if (iArg + 1 >= argc) {
+				ShowUsageAndExit(argv[0]);
+			}
+			str = argv[++iArg];
+			iSplitHeight = strtol(str, &pEnd, 10);
+			if (pEnd == str || *pEnd != '\0' || iSplitHeight <= 0) {
 				ShowUsageAndExit(argv[0]);
 			}
 			continue;
@@ -155,8 +218,13 @@ int main(int argc, char *argv[])
 	int iRes = 1;
 	int iGpu = 0;
 	int iAudio = -1;
+	int iNumPlayers = 1;
+	int iCols = 3;
+	int iRows = 2;
+	int iSplitWidth = 0;
+	int iSplitHeight = 0;
 	BOOL bHEVC = FALSE;
-	ParseArgs(argc, argv, iArg, iRes, iGpu, iAudio, bHEVC);
+	ParseArgs(argc, argv, iArg, iRes, iGpu, iAudio, iNumPlayers, iCols, iRows, iSplitWidth, iSplitHeight, bHEVC);
 
 	ULONGLONG pid = GetCurrentProcessId();
 	AppParamManager appParamManger(&pid);
@@ -174,9 +242,24 @@ int main(int argc, char *argv[])
 		*pAppParam->szAudioKeyword = '\0';
 	}
 
+	pAppParam->numPlayers = iNumPlayers;
+	pAppParam->cols = iCols;
+	pAppParam->rows = iRows;
+	if (iSplitWidth == 0 || iSplitHeight == 0)
+	{
+		pAppParam->splitHeight = aRes[iRes].y / iRows;
+		pAppParam->splitWidth = aRes[iRes].x / iCols;;
+	}
+	else
+	{
+		pAppParam->splitHeight = iSplitHeight;
+		pAppParam->splitWidth = iSplitWidth;
+	}
 	pAppParam->cxEncoding = aRes[iRes].x;
 	pAppParam->cyEncoding = aRes[iRes].y;
 	pAppParam->bHEVC = bHEVC;
+
+
 
 	char szAppDir[MAX_PATH];
 	strcpy_s(szAppDir, argv[iArg]);
@@ -194,9 +277,13 @@ int main(int argc, char *argv[])
 		"GPU number: %d\n"
 		"Audio number: %d\n"
 		"Codec: %s\n"
+		"Number of players: %d\n"
+		"Rows x Columns: %d x %d\n"
+		"Width x height: %d x %d\n"
 		"Starting application: %s\n"
 		"Working directory: %s\n"
-		, iGpu, iAudio, bHEVC ? "H265" : "H264", szCmdLine, szAppDir);
+		, iGpu, iAudio, bHEVC ? "H265" : "H264", pAppParam->numPlayers, pAppParam->cols, pAppParam->rows, 
+		pAppParam->splitWidth, pAppParam->splitHeight, szCmdLine, szAppDir);
 
 	STARTUPINFO si = {0};
 	PROCESS_INFORMATION pi;
