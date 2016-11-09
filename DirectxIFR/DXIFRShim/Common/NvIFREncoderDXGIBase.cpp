@@ -11,17 +11,17 @@ BOOL NvIFREncoderDXGIBase::SetupNvIFR()
 	NvIFREncoder::SetupNvIFR();
 
 	DXGI_SWAP_CHAIN_DESC sc = { 0 };
-	sc.BufferCount = 1;
+	sc.BufferCount = 1; // one back buffer
 	sc.BufferDesc.Width = nWidth;
 	sc.BufferDesc.Height = nHeight;
-	sc.BufferDesc.Format = dxgiFormat;
+	sc.BufferDesc.Format = dxgiFormat; // color format
 	sc.BufferDesc.RefreshRate.Numerator = 0;
 	sc.BufferDesc.RefreshRate.Denominator = 1;
-	sc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	sc.OutputWindow = hwndEncoder;
-	sc.SampleDesc.Count = 1;
+	sc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // how swap chain is to be used. This draw graphics into the back buffer.
+	sc.OutputWindow = hwndEncoder; // the window to be used
+	sc.SampleDesc.Count = 1;  // how many multisamples
 	sc.SampleDesc.Quality = 0;
-	sc.Windowed = TRUE;
+	sc.Windowed = TRUE; // windowed/full-screen mode
 
 	HRESULT hr = D3D10CreateDeviceAndSwapChain1(NULL, D3D10_DRIVER_TYPE_HARDWARE, NULL, 0,
 		D3D10_FEATURE_LEVEL_10_1, D3D10_1_SDK_VERSION, &sc, &pSwapChain, &pDevice);

@@ -1,44 +1,82 @@
 #pragma once
 
 #include "Streamer.h"
+#include <vector>
 
 extern simplelogger::Logger *logger;
 
 class StreamerFile : public Streamer
 {
 public:
-	StreamerFile(AppParam *pAppParam) : hOutFile(NULL)
+	StreamerFile(AppParam *pAppParam)
 	{
-		hOutFile = CreateFile(pAppParam && pAppParam->bHEVC ? "NvIFR.h265" : "NvIFR.h264", 
-			GENERIC_WRITE, FILE_SHARE_READ, 
-			NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (hOutFile == INVALID_HANDLE_VALUE) {
-			LOG_ERROR(logger, "Failed to create file, e=" << GetLastError());
+		// Open pipe to ffmpeg here
+		// Need to accept another argument from the cmd: -player index, -rows, -cols, -size of split screen
+		// Based on index, crop the image accordingly.
+
+		int row = 0;
+		int col = 0;
+		
+		for (int i = 0; i < pAppParam->numPlayers; ++i)
+		{
+			std::stringstream *StringStream = new std::stringstream();
+			*StringStream << "ffmpeg -re -i - -filter:v \"crop=" << pAppParam->splitWidth << ":" << pAppParam->splitHeight << ":" << 0 + pAppParam->splitWidth*col << ":" << 0 + pAppParam->splitHeight*row << "\" " \
+			                 "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
+			                 "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=1500:keyint=30:ref=1 " \
+			                 "-f mpegts http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
+			//*StringStream << "ffmpeg -re -i - -c copy -listen 1 " \
+			//	"-f h264 http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
+			PipeList.push_back(_popen(StringStream->str().c_str(), "wb"));
+
+			++col;
+			if (col >= pAppParam->cols)
+			{
+				col = 0;
+				++row;
+			}
+			//if (PipeList[i] == NULL)
+			//{
+			//	LOG_ERROR(logger, "Failed to create FFMPEG Pipe");
+			//}
 		}
+		
+		
 	}
 	~StreamerFile()
 	{
-		if (hOutFile) {
-			CloseHandle(hOutFile);
-		}
+		//for (int i = 0; i < PipeList.size(); ++i)
+		//{
+		//	if (PipeList[i])
+		//	{
+		//		fclose(PipeList[i]);
+		//	}
+		//}
 	}
 	BOOL Stream(BYTE *pData, int nBytes)
 	{
-		if (!hOutFile) {
-			return FALSE;
+		for (int i = 0; i < PipeList.size(); ++i)
+		{
+			//if (!PipeList[i])
+			//{
+			//	return FALSE;
+			//}
+			fwrite(pData, nBytes, 1, PipeList[i]);
 		}
-		DWORD dwWritten = 0;
-		WriteFile(hOutFile, pData, nBytes, &dwWritten, NULL);
-		if (dwWritten != nBytes) {
-			LOG_ERROR(logger, "Unsuccessful file writing: dwWritten=" << dwWritten << ", e=" << GetLastError());
-		}
+		
 		return TRUE;
 	}
 	BOOL IsReady() 
 	{
-		return hOutFile != NULL;
+		//for (int i = 0; i < PipeList.size(); ++i)
+		//{
+		//	if (PipeList[i] == NULL)
+		//	{
+		//		return FALSE;
+		//	}
+		//}
+		return TRUE;
 	}
 
 private:
-	HANDLE hOutFile;
+	std::vector<FILE*> PipeList;
 };

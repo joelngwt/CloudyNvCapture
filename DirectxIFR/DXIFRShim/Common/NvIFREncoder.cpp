@@ -149,6 +149,7 @@ void NvIFREncoder::EncoderThreadProc()
 
 	if (!pStreamer) {
 		if (!pSharedStreamer) {
+			// FFMPEG is started up here
 			pSharedStreamer = Util4Streamer::GetStreamer(pAppParam);
 		}
 		pStreamer = pSharedStreamer;
@@ -194,6 +195,7 @@ void NvIFREncoder::EncoderThreadProc()
 			res = pIFR->NvIFRGetStatsFromHWEncoder(&params);
 
 			if (res == NVIFR_SUCCESS) {
+				// Frames are written here
 				pStreamer->Stream(pBitStreamBuffer, streamParam.dwByteSize);
 			} else {
 				LOG_ERROR(logger, "NvIFRGetStatsFromH264HWEncoder failed, res=" << res);
