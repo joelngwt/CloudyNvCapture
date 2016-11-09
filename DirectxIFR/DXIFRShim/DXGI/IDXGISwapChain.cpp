@@ -93,7 +93,7 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 		if (!pEncoder && !(pAppParam && pAppParam->bDwm) 
 				&& !(pAppParam && pAppParam->bForceHwnd && (HWND)pAppParam->hwnd != GetOutputWindow(This))) {
 			pEncoder = new NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D>(This, desc.Width, desc.Height, 
-				desc.Format, TRUE, pAppParam);
+				desc.Format, FALSE, pAppParam);
 			if (!pEncoder->StartEncoder()) {
 				LOG_WARN(logger, "failed to start d3d11 encoder");
 				delete pEncoder;
