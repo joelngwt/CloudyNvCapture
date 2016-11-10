@@ -34,8 +34,8 @@
 extern simplelogger::Logger *logger;
 
 #define PIXEL_SIZE 3
-#define WIDTH 1280
-#define HEIGHT 720
+#define WIDTH 1920
+#define HEIGHT 1080
 
 BOOL NvIFREncoder::StartEncoder() 
 {
@@ -93,76 +93,25 @@ void NvIFREncoder::EncoderThreadProc()
 		return;
 	}
 
-	UINT cxEncoding = nWidth, cyEncoding = nHeight;
-	if (pAppParam && pAppParam->cxEncoding && pAppParam->cyEncoding) {
-		cxEncoding = pAppParam->cxEncoding;
-		cyEncoding = pAppParam->cyEncoding;
-	}
-
-	//NVIFR_HW_ENC_SETUP_PARAMS params = { 0 };
-	//params.dwVersion = NVIFR_HW_ENC_SETUP_PARAMS_VER;
-	//NV_HW_ENC_CONFIG_PARAMS &encodeConfig = params.configParams;
-	//
-	//encodeConfig.dwVersion = NV_HW_ENC_CONFIG_PARAMS_VER;
-	//encodeConfig.eCodec = pAppParam && pAppParam->bHEVC ? NV_HW_ENC_HEVC : NV_HW_ENC_H264;
-	//LOG_DEBUG(logger, "Codec (H264=" << NV_HW_ENC_H264 << ", HEVC=" << NV_HW_ENC_HEVC << "): " << encodeConfig.eCodec);
-	//
-	//DWORD dwAvgBitRate = pAppParam && pAppParam->dwAvgBitRate ?
-	//	pAppParam->dwAvgBitRate : (unsigned long long)5000000 * (cxEncoding * cyEncoding) / (1280 * 720);
-	//encodeConfig.dwProfile = encodeConfig.eCodec == NV_HW_ENC_HEVC ? 1 : 100;
-	//encodeConfig.dwFrameRateNum = nFrameRate;
-	//encodeConfig.dwFrameRateDen = 1;
-	//encodeConfig.dwAvgBitRate = dwAvgBitRate;
-	//encodeConfig.dwPeakBitRate = dwAvgBitRate * 12 / 10;
-	//encodeConfig.dwGOPLength = pAppParam && pAppParam->dwGOPLength ? pAppParam->dwGOPLength : encodeConfig.dwFrameRateNum * 5;
-	//encodeConfig.dwVBVBufferSize = encodeConfig.dwAvgBitRate / encodeConfig.dwFrameRateNum * 8;
-	//encodeConfig.dwVBVInitialDelay = encodeConfig.dwAvgBitRate / encodeConfig.dwFrameRateNum;
-	//encodeConfig.bRepeatSPSPPSHeader = 1;
-	//encodeConfig.bEnableYUV444Encoding = pAppParam ? pAppParam->bEnableYUV444Encoding : FALSE;
-	//encodeConfig.eRateControl = NV_HW_ENC_PARAMS_RC_CBR;
-	//encodeConfig.ePresetConfig = NV_HW_ENC_PRESET_LOW_LATENCY_HP;
-	//
-	//params.dwNBuffers = 1;
-	//params.dwBSMaxSize = 2048 * 1024;
-	//params.ppPageLockedBitStreamBuffers = &pBitStreamBuffer;
-	//params.ppEncodeCompletionEvents = &hevtEncodeComplete;
-	//params.dwTargetWidth = cxEncoding / 16 * 16;
-	//params.dwTargetHeight = cyEncoding / 8 * 8;
-	//
-	//LOG_DEBUG(logger, "Encoding Parameters:" << endl
-	//	<< "Average Bit Rate: " << encodeConfig.dwAvgBitRate / 1024.0 / 1024.0 << "MB" << endl
-	//	<< "Peak Bit Rate: " << encodeConfig.dwAvgBitRate / 1024.0 / 1024.0 << "MB" << endl
-	//	<< "Frame Rate: " << encodeConfig.dwFrameRateNum << "/" << encodeConfig.dwFrameRateDen << endl
-	//	<< "GOP Length: " << encodeConfig.dwGOPLength << endl
-	//	<< "VBV Buffer Size: " << encodeConfig.dwVBVBufferSize << "B" << endl
-	//	<< "VBV Initial Delay: " << encodeConfig.dwVBVInitialDelay << "B" << endl
-	//	<< "Enable YUV444 Encoding: " << encodeConfig.bEnableYUV444Encoding << endl
-	//	<< "Rate Control: " << encodeConfig.eRateControl << endl
-	//	<< "Preset: " << encodeConfig.ePresetConfig
-	//);
-	//
-	//NVIFRRESULT nr = pIFR->NvIFRSetUpHWEncoder(&params);
-
-	
-	
 	NVIFR_TOSYS_SETUP_PARAMS params = { 0 }; 
 	params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER; 
 	params.eFormat = NVIFR_FORMAT_RGB;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = 1; 
+	params.dwTargetWidth = WIDTH;
+	params.dwTargetHeight = HEIGHT;
 	params.ppPageLockedSysmemBuffers = &buffer;
 	params.ppTransferCompletionEvents = &gpuEvent; 
 
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
 
 	if (nr != NVIFR_SUCCESS) {
-		LOG_ERROR(logger, "NvIFRSetUpH264HWEncoder failed, nr=" << nr);
+		LOG_ERROR(logger, "NvIFRSetUpTargetBufferToSys failed, nr=" << nr);
 		SetEvent(hevtInitEncoderDone);
 		CleanupNvIFR();
 		return;
 	}
-	LOG_DEBUG(logger, "NvIFRSetUpH264HWEncoder succeeded, target size: " 
-		<< params.dwTargetWidth << "x" << params.dwTargetHeight);
+	LOG_DEBUG(logger, "NvIFRSetUpTargetBufferToSys succeeded");
 
 	if (!pStreamer) {
 		if (!pSharedStreamer) {
@@ -172,7 +121,7 @@ void NvIFREncoder::EncoderThreadProc()
 		pStreamer = pSharedStreamer;
 	}
 	if (!pStreamer->IsReady()) {
-		LOG_ERROR(logger, "Cannot create H264 file. Please check file writing permission.");
+		LOG_ERROR(logger, "Cannot create FFMPEG pipe for streaming.");
 		SetEvent(hevtInitEncoderDone);
 		CleanupNvIFR();
 		return;
@@ -189,18 +138,11 @@ void NvIFREncoder::EncoderThreadProc()
 			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
 		}
 
-		//NVIFR_HW_ENC_TRANSFER_RT_TO_HW_ENC_PARAMS params = { 0 };
-		//params.dwVersion = NVIFR_HW_ENC_TRANSFER_RT_TO_HW_ENC_PARAMS_VER;
-		//params.encodePicParams.dwVersion = NV_HW_ENC_PIC_PARAMS_VER;
-		//
-		//NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToHWEncoder(&params);
-
 		NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
 
 		if (res == NVIFR_SUCCESS) {
 			HANDLE ahevt[] = {hevtEncodeComplete, hevtStopEncoder};
 			
-			//DWORD dwRet = WaitForMultipleObjects(sizeof(ahevt)/sizeof(ahevt[0]), ahevt, FALSE, INFINITE);
 			DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE); 
 			
 			if (dwRet != WAIT_OBJECT_0) {
@@ -212,16 +154,8 @@ void NvIFREncoder::EncoderThreadProc()
 			ResetEvent(hevtEncodeComplete);
 			ResetEvent(gpuEvent);
 
-			//NVIFR_HW_ENC_GET_BITSTREAM_PARAMS params = { 0 };
-			//params.dwVersion = NVIFR_HW_ENC_GET_BITSTREAM_PARAMS_VER;
-			//params.bitStreamParams.dwVersion = NV_HW_ENC_GET_BIT_STREAM_PARAMS_VER;
-			//NV_HW_ENC_GET_BIT_STREAM_PARAMS &streamParam = params.bitStreamParams;
-
-			//res = pIFR->NvIFRGetStatsFromHWEncoder(&params);
-
 			if (res == NVIFR_SUCCESS) {
 				// Frames are written here
-				//pStreamer->Stream(pBitStreamBuffer, streamParam.dwByteSize);
 				pStreamer->Stream(buffer, WIDTH*HEIGHT * PIXEL_SIZE); // 24 bit pixels (3 bytes)
 			} else {
 				LOG_ERROR(logger, "NvIFRGetStatsFromH264HWEncoder failed, res=" << res);

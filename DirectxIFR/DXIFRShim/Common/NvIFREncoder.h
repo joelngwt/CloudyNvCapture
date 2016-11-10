@@ -29,7 +29,6 @@
 #include <d3d11.h>
 #include <windows.h>
 #include <NvIFR/NvIFR.h>
-//#include <NvIFR/nvIFRHWEnc.h>
 #include <NvIFR/NvIFRToSys.h>
 #include <NvIFRLibrary.h>
 #include "Logger.h"
@@ -107,7 +106,6 @@ protected:
 	HWND hwndEncoder;
 	BOOL bStopEncoder;
 
-	//INvIFRToHWEncoder_v1 *pIFR;
 	NvIFRToSys *pIFR;
 	HANDLE hSharedTexture;
 	BOOL bKeyedMutex;
