@@ -29,7 +29,9 @@
 #include <d3d11.h>
 #include <windows.h>
 #include <NvIFR/NvIFR.h>
-#include <NvIFR/nvIFRHWEnc.h>
+//#include <NvIFR/nvIFRHWEnc.h>
+#include <NvIFR/NvIFRToSys.h>
+#include <NvIFRLibrary.h>
 #include "Logger.h"
 #include "AppParam.h"
 #include "GridAdapter.h"
@@ -105,7 +107,8 @@ protected:
 	HWND hwndEncoder;
 	BOOL bStopEncoder;
 
-	INvIFRToHWEncoder_v1 *pIFR;
+	//INvIFRToHWEncoder_v1 *pIFR;
+	NvIFRToSys *pIFR;
 	HANDLE hSharedTexture;
 	BOOL bKeyedMutex;
 
@@ -183,6 +186,10 @@ private:
 	const int nFrameRate;
 	const char *szClassName;
 	const void *pPresenter;
+
+	unsigned char *buffer;
+	std::vector<FILE*> PipeList;
+	HANDLE gpuEvent;
 
 	BYTE *pBitStreamBuffer;
 	HANDLE hevtEncodeComplete;

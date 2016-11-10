@@ -79,7 +79,8 @@ BOOL NvIFREncoderDXGIBase::SetupNvIFR()
 		return FALSE;
 	}
 
-	pIFR = (INvIFRToHWEncoder_v1 *)NvIFRLib.create(pDevice, NVIFR_TO_HWENCODER); 
+//	pIFR = (INvIFRToHWEncoder_v1 *)NvIFRLib.create(pDevice, NVIFR_TO_HWENCODER); 
+	pIFR = (NvIFRToSys *)NvIFRLib.create(pDevice, NVIFR_TOSYS);
 	if (!pIFR) {
 		LOG_DEBUG(logger, "failed to create NvIFRToH264HWEncoder");
 		return FALSE;
