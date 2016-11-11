@@ -46,7 +46,7 @@ public:
 		bKeyedMutex(bKeyedMutex), 
 		pAppParam(pAppParam), pStreamer(pStreamer),
 		bStopEncoder(TRUE), pIFR(NULL), hSharedTexture(NULL),
-		nFrameRate(50),
+		nFrameRate(60),
 		szClassName("NvIFREncoder"),
 		pBitStreamBuffer(NULL), hevtEncodeComplete(NULL),
 		bInitEncoderSuccessful(FALSE), hevtInitEncoderDone(NULL), hthEncoder(NULL), hevtStopEncoder(NULL)
@@ -94,10 +94,16 @@ protected:
 
 private:
 	void EncoderThreadProc();
+	void FFMPEGThreadProc();
 
 	static void EncoderThreadStartProc(void *args) 
 	{
 		((NvIFREncoder *)args)->EncoderThreadProc();
+	}
+
+	static void FFMPEGThreadStartProc(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc();
 	}
 
 protected:
@@ -185,9 +191,9 @@ private:
 	const char *szClassName;
 	const void *pPresenter;
 
-	unsigned char *buffer;
+	
 	std::vector<FILE*> PipeList;
-	HANDLE gpuEvent;
+	HANDLE FFMPEGThread;
 
 	BYTE *pBitStreamBuffer;
 	HANDLE hevtEncodeComplete;

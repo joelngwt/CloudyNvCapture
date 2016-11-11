@@ -36,6 +36,10 @@ extern simplelogger::Logger *logger;
 #define PIXEL_SIZE 3
 #define WIDTH 1920
 #define HEIGHT 1080
+#define NUMFRAMESINFLIGHT 3 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
+
+HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL, NULL, NULL };
+unsigned char *buffer[NUMFRAMESINFLIGHT] = { NULL, NULL, NULL};
 
 BOOL NvIFREncoder::StartEncoder() 
 {
@@ -78,6 +82,25 @@ void NvIFREncoder::StopEncoder()
 	hevtStopEncoder = NULL;
 }
 
+void NvIFREncoder::FFMPEGThreadProc()
+{
+	for (int bufferIndex = 0; bufferIndex < NUMFRAMESINFLIGHT; ++bufferIndex)
+	{
+		DWORD dwRet = WaitForSingleObject(gpuEvent[bufferIndex], INFINITE);
+
+		if (dwRet != WAIT_OBJECT_0) {
+			if (dwRet != WAIT_OBJECT_0 + 1) {
+				LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
+			}
+			return;
+		}
+		// Frames are written here
+		pStreamer->Stream(buffer[bufferIndex], WIDTH*HEIGHT * PIXEL_SIZE, bufferIndex); // 24 bit pixels (3 bytes)
+		ResetEvent(gpuEvent[bufferIndex]);
+	}
+	
+}
+
 void NvIFREncoder::EncoderThreadProc() 
 {
 	/*Note: 
@@ -97,11 +120,11 @@ void NvIFREncoder::EncoderThreadProc()
 	params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER; 
 	params.eFormat = NVIFR_FORMAT_RGB;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
-	params.dwNBuffers = 1; 
+	params.dwNBuffers = NUMFRAMESINFLIGHT; 
 	params.dwTargetWidth = WIDTH;
 	params.dwTargetHeight = HEIGHT;
-	params.ppPageLockedSysmemBuffers = &buffer;
-	params.ppTransferCompletionEvents = &gpuEvent; 
+	params.ppPageLockedSysmemBuffers = buffer;
+	params.ppTransferCompletionEvents = gpuEvent; 
 
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
 
@@ -135,27 +158,25 @@ void NvIFREncoder::EncoderThreadProc()
 			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
 		}
 
-		NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
-
-		if (res == NVIFR_SUCCESS) {
-			DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE); 
-			
-			if (dwRet != WAIT_OBJECT_0) {
-				if (dwRet != WAIT_OBJECT_0 + 1) {
-					LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
-				}
-				break;
-			}
-
-			if (res == NVIFR_SUCCESS) {
-				// Frames are written here
-				pStreamer->Stream(buffer, WIDTH*HEIGHT * PIXEL_SIZE); // 24 bit pixels (3 bytes)
-			} else {
-				LOG_ERROR(logger, "NvIFRGetStatsFromH264HWEncoder failed, res=" << res);
-			}
-		} else {
-			LOG_ERROR(logger, "NvIFRTransferRenderTargetToH264HWEncoder failed, res=" << res);
-		}
+		//for (int bufferIndex = 0; bufferIndex < NUMFRAMESINFLIGHT; ++bufferIndex)
+		//{
+		//	NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(bufferIndex);
+		//
+		//	if (res == NVIFR_SUCCESS) {
+		//
+		//		// Start Thread
+		//		// Flag to ensure thread only started once?
+		//		// Need an infinite loop in the thread?
+		//		FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc, 0, this);
+		//		if (!FFMPEGThread) {
+		//			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
+		//		}
+		//		// End thread
+		//	}
+		//	else {
+		//		LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
+		//	}
+		//}
 	}
 	LOG_DEBUG(logger, "Quit encoding loop");
 
