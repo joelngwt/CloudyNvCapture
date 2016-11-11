@@ -116,7 +116,7 @@ void NvIFREncoder::EncoderThreadProc()
 	if (!pStreamer) {
 		if (!pSharedStreamer) {
 			// FFMPEG is started up here
-			pSharedStreamer = Util4Streamer::GetStreamer(pAppParam);
+			pSharedStreamer = Util4Streamer::GetStreamer(pAppParam, WIDTH, HEIGHT);
 		}
 		pStreamer = pSharedStreamer;
 	}

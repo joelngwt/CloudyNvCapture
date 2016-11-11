@@ -8,7 +8,7 @@ extern simplelogger::Logger *logger;
 class StreamerFile : public Streamer
 {
 public:
-	StreamerFile(AppParam *pAppParam)
+	StreamerFile(AppParam *pAppParam, int width, int height)
 	{
 		// Open pipe to ffmpeg here
 		// Need to accept another argument from the cmd: -player index, -rows, -cols, -size of split screen
@@ -20,7 +20,7 @@ public:
 		for (int i = 0; i < pAppParam->numPlayers; ++i)
 		{
 			std::stringstream *StringStream = new std::stringstream();
-			*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s " << 1920 << "x" << 1080 << \
+			*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s " << width << "x" << height << \
 						     " -re -i - -filter:v crop=\"" << pAppParam->splitWidth << ":" << pAppParam->splitHeight << ":" << 0 + pAppParam->splitWidth*col << ":" << 0 + pAppParam->splitHeight*row << "\" " \
 							 "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
 							 "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=1500:keyint=30:ref=1 " \
