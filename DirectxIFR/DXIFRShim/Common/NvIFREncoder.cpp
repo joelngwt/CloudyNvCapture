@@ -130,9 +130,6 @@ void NvIFREncoder::EncoderThreadProc()
 	bInitEncoderSuccessful = TRUE;
 	SetEvent(hevtInitEncoderDone);
 
-	DWORD dwTimeZero = timeGetTime();
-	UINT uFrameCount = 0;
-
 	while (!bStopEncoder) {
 		if (!UpdateBackBuffer()) {
 			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
@@ -141,8 +138,6 @@ void NvIFREncoder::EncoderThreadProc()
 		NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
 
 		if (res == NVIFR_SUCCESS) {
-			HANDLE ahevt[] = {hevtEncodeComplete, hevtStopEncoder};
-			
 			DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE); 
 			
 			if (dwRet != WAIT_OBJECT_0) {
@@ -151,8 +146,6 @@ void NvIFREncoder::EncoderThreadProc()
 				}
 				break;
 			}
-			ResetEvent(hevtEncodeComplete);
-			ResetEvent(gpuEvent);
 
 			if (res == NVIFR_SUCCESS) {
 				// Frames are written here
@@ -162,13 +155,6 @@ void NvIFREncoder::EncoderThreadProc()
 			}
 		} else {
 			LOG_ERROR(logger, "NvIFRTransferRenderTargetToH264HWEncoder failed, res=" << res);
-		}
-
-		int delta = (int)((dwTimeZero + ++uFrameCount * 1000 / nFrameRate) - timeGetTime());
-		if (delta > 0) {
-			WaitForSingleObject(hevtStopEncoder, delta);
-		} else {
-			LOG_DEBUG(logger, "No sleep to catch up frame rate, delta=" << delta);
 		}
 	}
 	LOG_DEBUG(logger, "Quit encoding loop");
