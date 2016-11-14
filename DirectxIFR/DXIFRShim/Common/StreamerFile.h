@@ -58,15 +58,12 @@ public:
 	}
 	BOOL Stream(BYTE *pData, int nBytes, int bufferIndex)
 	{
-		//for (int i = 0; i < PipeList.size(); ++i)
-		//{
-			if (!PipeList[bufferIndex])
-			{
-				return FALSE;
-			}
-			fwrite(pData, nBytes, 1, PipeList[bufferIndex]);
-		//}
-		
+		if (!PipeList[bufferIndex])
+		{
+			return FALSE;
+		}
+		fwrite(pData, nBytes, 1, PipeList[bufferIndex]);
+
 		return TRUE;
 	}
 	BOOL IsReady() 

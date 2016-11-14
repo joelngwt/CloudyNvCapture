@@ -46,7 +46,7 @@ public:
 		bKeyedMutex(bKeyedMutex), 
 		pAppParam(pAppParam), pStreamer(pStreamer),
 		bStopEncoder(TRUE), pIFR(NULL), hSharedTexture(NULL),
-		nFrameRate(60),
+		nFrameRate(25),
 		szClassName("NvIFREncoder"),
 		pBitStreamBuffer(NULL), hevtEncodeComplete(NULL),
 		bInitEncoderSuccessful(FALSE), hevtInitEncoderDone(NULL), hthEncoder(NULL), hevtStopEncoder(NULL)
@@ -94,16 +94,41 @@ protected:
 
 private:
 	void EncoderThreadProc();
-	void FFMPEGThreadProc();
+	void FFMPEGThreadProc(int playerIndex);
 
 	static void EncoderThreadStartProc(void *args) 
 	{
 		((NvIFREncoder *)args)->EncoderThreadProc();
 	}
 
-	static void FFMPEGThreadStartProc(void *args)
+	static void FFMPEGThreadStartProc0(void *args)
 	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc();
+		((NvIFREncoder *)args)->FFMPEGThreadProc(0);
+	}
+
+	static void FFMPEGThreadStartProc1(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(1);
+	}
+
+	static void FFMPEGThreadStartProc2(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(2);
+	}
+
+	static void FFMPEGThreadStartProc3(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(3);
+	}
+
+	static void FFMPEGThreadStartProc4(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(4);
+	}
+
+	static void FFMPEGThreadStartProc5(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(5);
 	}
 
 protected:
@@ -191,6 +216,12 @@ private:
 	const char *szClassName;
 	const void *pPresenter;
 
+	int numThreads1;
+	int numThreads2;
+	int numThreads3;
+	int numThreads4;
+	int numThreads5;
+	int numThreads6;
 	
 	std::vector<FILE*> PipeList;
 	HANDLE FFMPEGThread;

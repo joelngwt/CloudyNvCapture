@@ -28,6 +28,8 @@
 #include <NvIFRLibrary.h>
 #include "NvIFREncoder.h"
 #include "Util4Streamer.h"
+#include <chrono>
+#include <thread>
 
 #pragma comment(lib, "winmm.lib")
 
@@ -82,23 +84,37 @@ void NvIFREncoder::StopEncoder()
 	hevtStopEncoder = NULL;
 }
 
-void NvIFREncoder::FFMPEGThreadProc()
+void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
-	for (int bufferIndex = 0; bufferIndex < pAppParam->numPlayers; ++bufferIndex)
-	{
-		DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
+	// Frames are written here
+	pStreamer->Stream(buffer[0], WIDTH*HEIGHT * PIXEL_SIZE, playerIndex); // Memory leak here
 
-		if (dwRet != WAIT_OBJECT_0) {
-			if (dwRet != WAIT_OBJECT_0 + 1) {
-				LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
-			}
-			return;
-		}
-		// Frames are written here
-		pStreamer->Stream(buffer[0], WIDTH*HEIGHT * PIXEL_SIZE, bufferIndex); // 24 bit pixels (3 bytes)
-		ResetEvent(gpuEvent[0]);
+	if (playerIndex == 0)
+	{
+		numThreads1--;
 	}
-	
+	else if (playerIndex == 1)
+	{
+		numThreads2--;
+	}
+	else if (playerIndex == 2)
+	{
+		numThreads3--;
+	}
+	else if (playerIndex == 3)
+	{
+		numThreads4--;
+	}
+	else if (playerIndex == 4)
+	{
+		numThreads5--;
+	}
+	else if (playerIndex == 5)
+	{
+		numThreads6--;
+	}
+
+	_endthread();
 }
 
 void NvIFREncoder::EncoderThreadProc() 
@@ -153,30 +169,75 @@ void NvIFREncoder::EncoderThreadProc()
 	bInitEncoderSuccessful = TRUE;
 	SetEvent(hevtInitEncoderDone);
 
-	while (!bStopEncoder) {
-		if (!UpdateBackBuffer()) {
+	numThreads1 = 0;
+	numThreads2 = 0;
+	numThreads3 = 0;
+	numThreads4 = 0;
+	numThreads5 = 0;
+	numThreads6 = 0;
+
+	while (!bStopEncoder) 
+	{
+		if (!UpdateBackBuffer()) 
+		{
 			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
 		}
-
-		for (int bufferIndex = 0; bufferIndex < pAppParam->numPlayers; ++bufferIndex)
+		
+		NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
+		
+		if (res == NVIFR_SUCCESS) 
 		{
-			NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
-		
-			if (res == NVIFR_SUCCESS) {
-		
-				// Start Thread
-				// Flag to ensure thread only started once?
-				// Need an infinite loop in the thread?
-				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc, 0, this);
-				if (!FFMPEGThread) {
-					LOG_DEBUG(logger, "UpdateBackBuffer() failed");
+			DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
+			if (dwRet != WAIT_OBJECT_0)// If not signalled
+			{ 
+				if (dwRet != WAIT_OBJECT_0 + 1) 
+				{
+					LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
 				}
-				// End thread
+				return;
 			}
-			else {
-				LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
+
+			if (pAppParam->numPlayers > 0 && numThreads1 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
+				numThreads1++;
 			}
+			if (pAppParam->numPlayers > 1 && numThreads2 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
+				numThreads2++;
+			}
+			if (pAppParam->numPlayers > 2 && numThreads3 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
+				numThreads3++;
+			}
+			if (pAppParam->numPlayers > 3 && numThreads4 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
+				numThreads4++;
+			}
+			if (pAppParam->numPlayers > 4 && numThreads5 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
+				numThreads5++;
+			}
+			if (pAppParam->numPlayers > 5 && numThreads6 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
+				numThreads6++;
+			}
+			ResetEvent(gpuEvent[0]);
 		}
+		else 
+		{
+			LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
+		}
+		
+
+		// Prevent doing extra work (25 FPS)
+		std::this_thread::sleep_for(std::chrono::milliseconds(40));
+
 	}
 	LOG_DEBUG(logger, "Quit encoding loop");
 
