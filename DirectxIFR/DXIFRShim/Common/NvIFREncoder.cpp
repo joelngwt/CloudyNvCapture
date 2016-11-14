@@ -36,10 +36,10 @@ extern simplelogger::Logger *logger;
 #define PIXEL_SIZE 3
 #define WIDTH 1920
 #define HEIGHT 1080
-#define NUMFRAMESINFLIGHT 3 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
+#define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 
-HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL, NULL, NULL };
-unsigned char *buffer[NUMFRAMESINFLIGHT] = { NULL, NULL, NULL};
+HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL };
+unsigned char *buffer[NUMFRAMESINFLIGHT] = { NULL};
 
 BOOL NvIFREncoder::StartEncoder() 
 {
@@ -84,9 +84,9 @@ void NvIFREncoder::StopEncoder()
 
 void NvIFREncoder::FFMPEGThreadProc()
 {
-	for (int bufferIndex = 0; bufferIndex < NUMFRAMESINFLIGHT; ++bufferIndex)
+	for (int bufferIndex = 0; bufferIndex < pAppParam->numPlayers; ++bufferIndex)
 	{
-		DWORD dwRet = WaitForSingleObject(gpuEvent[bufferIndex], INFINITE);
+		DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
 
 		if (dwRet != WAIT_OBJECT_0) {
 			if (dwRet != WAIT_OBJECT_0 + 1) {
@@ -95,8 +95,8 @@ void NvIFREncoder::FFMPEGThreadProc()
 			return;
 		}
 		// Frames are written here
-		pStreamer->Stream(buffer[bufferIndex], WIDTH*HEIGHT * PIXEL_SIZE, bufferIndex); // 24 bit pixels (3 bytes)
-		ResetEvent(gpuEvent[bufferIndex]);
+		pStreamer->Stream(buffer[0], WIDTH*HEIGHT * PIXEL_SIZE, bufferIndex); // 24 bit pixels (3 bytes)
+		ResetEvent(gpuEvent[0]);
 	}
 	
 }
@@ -158,25 +158,25 @@ void NvIFREncoder::EncoderThreadProc()
 			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
 		}
 
-		//for (int bufferIndex = 0; bufferIndex < NUMFRAMESINFLIGHT; ++bufferIndex)
-		//{
-		//	NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(bufferIndex);
-		//
-		//	if (res == NVIFR_SUCCESS) {
-		//
-		//		// Start Thread
-		//		// Flag to ensure thread only started once?
-		//		// Need an infinite loop in the thread?
-		//		FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc, 0, this);
-		//		if (!FFMPEGThread) {
-		//			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
-		//		}
-		//		// End thread
-		//	}
-		//	else {
-		//		LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
-		//	}
-		//}
+		for (int bufferIndex = 0; bufferIndex < pAppParam->numPlayers; ++bufferIndex)
+		{
+			NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
+		
+			if (res == NVIFR_SUCCESS) {
+		
+				// Start Thread
+				// Flag to ensure thread only started once?
+				// Need an infinite loop in the thread?
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc, 0, this);
+				if (!FFMPEGThread) {
+					LOG_DEBUG(logger, "UpdateBackBuffer() failed");
+				}
+				// End thread
+			}
+			else {
+				LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
+			}
+		}
 	}
 	LOG_DEBUG(logger, "Quit encoding loop");
 
