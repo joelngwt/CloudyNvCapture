@@ -15,6 +15,113 @@ extern "C"
 #pragma comment(lib, "swscale.lib")
 #pragma comment(lib, "avutil.lib")
 
+static AVFrame *frame;
+static AVPicture src_picture, dst_picture;
+
+/* Add an output stream. */
+static AVStream *add_stream(AVFormatContext *oc, AVCodec **codec, enum AVCodecID codec_id)
+{
+    AVCodecContext *c;
+    AVStream *st;
+
+    /* find the encoder */
+    *codec = avcodec_find_encoder(codec_id);
+    if (!(*codec)) {
+        av_log(NULL, AV_LOG_ERROR, "Could not find encoder for '%s'.\n", avcodec_get_name(codec_id));
+    }
+    else {
+        st = avformat_new_stream(oc, *codec);
+        if (!st) {
+            av_log(NULL, AV_LOG_ERROR, "Could not allocate stream.\n");
+        }
+        else {
+            st->id = oc->nb_streams - 1;
+            st->time_base.den = st->pts.den = 90000;
+            st->time_base.num = st->pts.num = 1;
+
+            c = st->codec;
+            c->codec_id = codec_id;
+            c->bit_rate = 400000;
+            c->width = 352;
+            c->height = 288;
+            c->time_base.den = 25; // 25 FPS
+            c->time_base.num = 1;
+            c->gop_size = 12; /* emit one intra frame every twelve frames at most */
+            c->pix_fmt = AV_PIX_FMT_YUV420P;
+        }
+    }
+}
+
+static int open_video(AVFormatContext *oc, AVCodec *codec, AVStream *st)
+{
+    int ret;
+    AVCodecContext *c = st->codec;
+
+    /* open the codec */
+    ret = avcodec_open2(c, codec, NULL);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Could not open video codec.\n", avcodec_get_name(c->codec_id));
+    }
+    else {
+
+        /* allocate and init a re-usable frame */
+        frame = av_frame_alloc();
+        if (!frame) {
+            av_log(NULL, AV_LOG_ERROR, "Could not allocate video frame.\n");
+            ret = -1;
+        }
+        else {
+            frame->format = c->pix_fmt;
+            frame->width = c->width;
+            frame->height = c->height;
+
+            /* Allocate the encoded raw picture. */
+            ret = avpicture_alloc(&dst_picture, c->pix_fmt, c->width, c->height);
+            if (ret < 0) {
+                av_log(NULL, AV_LOG_ERROR, "Could not allocate picture.\n");
+            }
+            else {
+                /* copy data and linesize picture pointers to frame */
+                *((AVPicture *)frame) = dst_picture;
+            }
+        }
+    }
+
+    return ret;
+}
+
+static int write_video_frame(AVFormatContext *oc, AVStream *st, int frameCount)
+{
+    int ret = 0;
+    AVCodecContext *c = st->codec;
+
+    //fill_yuv_image(&dst_picture, frameCount, c->width, c->height);
+
+    AVPacket pkt = { 0 };
+    int got_packet;
+    av_init_packet(&pkt);
+
+    /* encode the image */
+    frame->pts = frameCount;
+    ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Error encoding video frame.\n");
+    }
+    else {
+        if (got_packet) {
+            pkt.stream_index = st->index;
+            pkt.pts = av_rescale_q_rnd(pkt.pts, c->time_base, st->time_base, AVRounding(AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX));
+            ret = av_write_frame(oc, &pkt);
+
+            if (ret < 0) {
+                av_log(NULL, AV_LOG_ERROR, "Error while writing video frame.\n");
+            }
+        }
+    }
+
+    return ret;
+}
+
 int main(int argc, char *argv[]) {
     av_log_set_level(AV_LOG_TRACE);
 
@@ -68,7 +175,9 @@ int main(int argc, char *argv[]) {
 
     // Print info about input 
     av_dump_format(inCtx, inputVideoStreamIndex, kInputFileName, 0);
+    // Input file setup/reading complete 
 
+    // Output file setup begins
     // Get output format object
     AVOutputFormat * outFmt = av_guess_format(kOutputFileType, NULL, NULL);
     if (!outFmt)
@@ -84,6 +193,8 @@ int main(int argc, char *argv[]) {
         exit(1);
 
     // Make output stream
+    AVCodec *video_codec;
+    // add_stream(outCtx, &video_codec, AV_CODEC_ID_H264);
     AVStream * outStrm = avformat_new_stream(outCtx, NULL);
     AVStream const * const inStrm = inCtx->streams[inputVideoStreamIndex];
     AVCodec * codec = NULL;
