@@ -154,8 +154,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\AppParam.cpp" />
+    <ClCompile Include="FFmpegTutorial01.cpp" />
+    <ClCompile Include="HTTPStreamingTest.cpp" />
     <ClCompile Include="StartApp.cpp" />
-    <ClCompile Include="TestLibAV.cpp" />
+    <ClCompile Include="RTSPTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AppParam.h" />

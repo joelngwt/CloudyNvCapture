@@ -206,7 +206,7 @@ void SignalHandler_FullStop(int signal)
 	bFullStop = TRUE;
 }
 
-int main(int argc, char *argv[]) 
+int mainNo(int argc, char *argv[]) 
 {
 	if (argc == 1) {
 		ShowUsageAndExit(argv[0]);
@@ -258,8 +258,6 @@ int main(int argc, char *argv[])
 	pAppParam->cxEncoding = aRes[iRes].x;
 	pAppParam->cyEncoding = aRes[iRes].y;
 	pAppParam->bHEVC = bHEVC;
-
-
 
 	char szAppDir[MAX_PATH];
 	strcpy_s(szAppDir, argv[iArg]);
