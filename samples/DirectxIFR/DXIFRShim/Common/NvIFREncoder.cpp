@@ -36,8 +36,6 @@
 extern simplelogger::Logger *logger;
 
 #define PIXEL_SIZE 3
-#define WIDTH 1920
-#define HEIGHT 1080
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 
 HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL };
@@ -87,7 +85,7 @@ void NvIFREncoder::StopEncoder()
 void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
 	// Frames are written here
-	pStreamer->Stream(buffer[0], WIDTH*HEIGHT * PIXEL_SIZE, playerIndex); // Memory leak here
+	pStreamer->Stream(buffer[0], pAppParam->width*pAppParam->height * PIXEL_SIZE, playerIndex); // Memory leak here
 
 	if (playerIndex == 0)
 	{
@@ -113,6 +111,30 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 	{
 		numThreads6--;
 	}
+	else if (playerIndex == 6)
+	{
+		numThreads7--;
+	}
+	else if (playerIndex == 7)
+	{
+		numThreads8--;
+	}
+	else if (playerIndex == 8)
+	{
+		numThreads9--;
+	}
+	else if (playerIndex == 9)
+	{
+		numThreads10--;
+	}
+	else if (playerIndex == 10)
+	{
+		numThreads11--;
+	}
+	else if (playerIndex == 11)
+	{
+		numThreads12--;
+	}
 
 	_endthread();
 }
@@ -137,8 +159,8 @@ void NvIFREncoder::EncoderThreadProc()
 	params.eFormat = NVIFR_FORMAT_RGB;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
-	params.dwTargetWidth = WIDTH;
-	params.dwTargetHeight = HEIGHT;
+	params.dwTargetWidth = pAppParam->width;
+	params.dwTargetHeight = pAppParam->height;
 	params.ppPageLockedSysmemBuffers = buffer;
 	params.ppTransferCompletionEvents = gpuEvent; 
 
@@ -155,7 +177,7 @@ void NvIFREncoder::EncoderThreadProc()
 	if (!pStreamer) {
 		if (!pSharedStreamer) {
 			// FFMPEG is started up here
-			pSharedStreamer = Util4Streamer::GetStreamer(pAppParam, WIDTH, HEIGHT);
+			pSharedStreamer = Util4Streamer::GetStreamer(pAppParam, pAppParam->width, pAppParam->height);
 		}
 		pStreamer = pSharedStreamer;
 	}
@@ -175,6 +197,12 @@ void NvIFREncoder::EncoderThreadProc()
 	numThreads4 = 0;
 	numThreads5 = 0;
 	numThreads6 = 0;
+	numThreads7 = 0;
+	numThreads8 = 0;
+	numThreads9 = 0;
+	numThreads10 = 0;
+	numThreads11 = 0;
+	numThreads12 = 0;
 
 	while (!bStopEncoder) 
 	{
@@ -226,6 +254,36 @@ void NvIFREncoder::EncoderThreadProc()
 			{
 				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
 				numThreads6++;
+			}
+			if (pAppParam->numPlayers > 6 && numThreads7 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
+				numThreads7++;
+			}
+			if (pAppParam->numPlayers > 7 && numThreads8 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
+				numThreads8++;
+			}
+			if (pAppParam->numPlayers > 8 && numThreads9 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
+				numThreads9++;
+			}
+			if (pAppParam->numPlayers > 9 && numThreads10 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
+				numThreads10++;
+			}
+			if (pAppParam->numPlayers > 10 && numThreads11 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
+				numThreads11++;
+			}
+			if (pAppParam->numPlayers > 11 && numThreads12 <= 25)
+			{
+				FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
+				numThreads12++;
 			}
 			ResetEvent(gpuEvent[0]);
 		}
