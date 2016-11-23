@@ -142,6 +142,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\Common;</AdditionalIncludeDirectories>
+      <AdditionalOptions>-D__STDC_CONSTANT_MACROS %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -154,10 +155,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\AppParam.cpp" />
-    <ClCompile Include="FFmpegTutorial01.cpp" />
-    <ClCompile Include="HTTPStreamingTest.cpp" />
+    <ClCompile Include="Muxing.cpp" />
     <ClCompile Include="StartApp.cpp" />
-    <ClCompile Include="RTSPTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AppParam.h" />
