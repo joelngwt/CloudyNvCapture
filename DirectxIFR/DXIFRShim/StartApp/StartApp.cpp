@@ -24,7 +24,7 @@ void ShowUsageAndExit(char *szExeName)
 	exit(0);
 }
 
-static POINT aRes[] = {{640,480}, {800,600}, {720,576}, {1024,768}, {1280,720}, {1680,1050}, {1920,1080}};
+static POINT aRes[] = {{640,480}, {800,600}, {720,576}, {1024,768}, {1280,720}, {1680,1050}, {1920,1080}, {2560,1600}};
 
 static int FindMatchedResolution(char *szResolution) 
 {
@@ -249,6 +249,8 @@ int main(int argc, char *argv[])
 	{
 		pAppParam->splitHeight = aRes[iRes].y / iRows;
 		pAppParam->splitWidth = aRes[iRes].x / iCols;;
+		pAppParam->height = aRes[iRes].y;
+		pAppParam->width = aRes[iRes].x;
 	}
 	else
 	{

@@ -10,10 +10,6 @@ class StreamerFile : public Streamer
 public:
 	StreamerFile(AppParam *pAppParam, int width, int height)
 	{
-		// Open pipe to ffmpeg here
-		// Need to accept another argument from the cmd: -player index, -rows, -cols, -size of split screen
-		// Based on index, crop the image accordingly.
-		
 		int row = 0;
 		int col = 0;
 
@@ -23,7 +19,7 @@ public:
 			*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s " << width << "x" << height << \
 						     " -re -i - -filter:v crop=\"" << pAppParam->splitWidth << ":" << pAppParam->splitHeight << ":" << 0 + pAppParam->splitWidth*col << ":" << 0 + pAppParam->splitHeight*row << "\" " \
 							 "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
-							 "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=1500:keyint=30:ref=1 " \
+							 "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
 							 "-f mpegts http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
 			//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1920x1080 -re -i - -c copy -listen 1 " \
 			//				 "-f h264 http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";

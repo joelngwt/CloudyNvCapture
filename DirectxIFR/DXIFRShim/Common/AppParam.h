@@ -43,6 +43,8 @@ struct AppParam
 	int cols;
 	int splitHeight;
 	int splitWidth;
+	int height;
+	int width;
 
 	char szStreamingDest[80];
 
