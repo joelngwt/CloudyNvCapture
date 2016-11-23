@@ -35,7 +35,7 @@
 
 extern simplelogger::Logger *logger;
 
-#define PIXEL_SIZE 3
+#define PIXEL_SIZE 1.5
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 
 HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL };
@@ -156,7 +156,7 @@ void NvIFREncoder::EncoderThreadProc()
 
 	NVIFR_TOSYS_SETUP_PARAMS params = { 0 }; 
 	params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER; 
-	params.eFormat = NVIFR_FORMAT_RGB;
+	params.eFormat = NVIFR_FORMAT_YUV_420;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
 	params.dwTargetWidth = pAppParam->width;
