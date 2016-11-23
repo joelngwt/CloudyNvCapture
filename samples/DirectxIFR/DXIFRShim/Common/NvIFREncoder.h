@@ -131,6 +131,36 @@ private:
 		((NvIFREncoder *)args)->FFMPEGThreadProc(5);
 	}
 
+	static void FFMPEGThreadStartProc6(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(6);
+	}
+
+	static void FFMPEGThreadStartProc7(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(7);
+	}
+
+	static void FFMPEGThreadStartProc8(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(8);
+	}
+
+	static void FFMPEGThreadStartProc9(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(9);
+	}
+
+	static void FFMPEGThreadStartProc10(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(10);
+	}
+
+	static void FFMPEGThreadStartProc11(void *args)
+	{
+		((NvIFREncoder *)args)->FFMPEGThreadProc(11);
+	}
+
 protected:
 	int nWidth, nHeight;
 	DXGI_FORMAT dxgiFormat;
@@ -222,6 +252,12 @@ private:
 	int numThreads4;
 	int numThreads5;
 	int numThreads6;
+	int numThreads7;
+	int numThreads8;
+	int numThreads9;
+	int numThreads10;
+	int numThreads11;
+	int numThreads12;
 	
 	std::vector<FILE*> PipeList;
 	HANDLE FFMPEGThread;

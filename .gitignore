@@ -1,4 +1,4 @@
-
+docs/
 # Created by https://www.gitignore.io/api/visualstudio,c++
 
 ### C++ ###
@@ -312,3 +312,4 @@ __pycache__/
 
 ### VisualStudio Patch ###
 build/
+datasets/
