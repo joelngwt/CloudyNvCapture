@@ -14,6 +14,7 @@ extern "C"
     #include <libavformat/avformat.h>
     #include <libswscale/swscale.h>
     #include <libswresample/swresample.h>
+	#include <libavutil/buffer.h>
 }
 
 #pragma comment(lib, "avcodec.lib")
@@ -426,28 +427,33 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 /* Prepare a dummy image. */
-static void fill_yuv_image(AVFrame *pict, int frame_index,
-    int width, int height)
+static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height, uint8_t *buffer)
+//static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height)
 {
-    int x, y, i;
-
-    i = frame_index;
-
-    /* Y */
-    for (y = 0; y < height; y++)
-        for (x = 0; x < width; x++)
-            pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
-
-    /* Cb and Cr */
-    for (y = 0; y < height / 2; y++) {
-        for (x = 0; x < width / 2; x++) {
-            pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
-            pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
-        }
-    }
+	pict->width = width;
+	pict->height = height;
+	pict->format = AV_PIX_FMT_YUV420P;
+	
+	avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    //int x, y, i;
+	//
+    //i = frame_index;
+	//
+    ///* Y */
+    //for (y = 0; y < height; y++)
+    //    for (x = 0; x < width; x++)
+    //        pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
+	//
+    ///* Cb and Cr */
+    //for (y = 0; y < height / 2; y++) {
+    //    for (x = 0; x < width / 2; x++) {
+    //        pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
+    //        pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
+    //    }
+    //}
 }
 
-static AVFrame *get_video_frame(OutputStream *ost)
+static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 {
     AVCodecContext *c = ost->enc;
     AVRational tb_b = { 1, 1 };
@@ -477,13 +483,13 @@ static AVFrame *get_video_frame(OutputStream *ost)
                 exit(1);
             }
         }
-        fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height);
+		fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height, buffer);
         sws_scale(ost->sws_ctx,
             (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
             0, c->height, ost->frame->data, ost->frame->linesize);
     }
     else {
-        fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
+		fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height, buffer);
     }
 
     ost->frame->pts = ost->next_pts++;
@@ -495,7 +501,7 @@ static AVFrame *get_video_frame(OutputStream *ost)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
 {
     int ret;
     AVCodecContext *c;
@@ -505,7 +511,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost)
 
     c = ost->enc;
 
-    frame = get_video_frame(ost);
+    frame = get_video_frame(ost, buffer);
 
     av_init_packet(&pkt);
 
@@ -543,7 +549,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 /**************************************************************/
 /* media file output */
 
-int main(int argc, char **argv)
+int main1(int argc, char **argv)
 {
     OutputStream video_st = { 0 }, audio_st = { 0 };
     const char *filename;
@@ -621,7 +627,7 @@ int main(int argc, char **argv)
     }
 
     // Open server
-    if ((ret = avio_open2(&oc->pb, "http://137.132.83.206:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+    if ((ret = avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
         fprintf(stderr, "Failed to open server.\n");
         return ret;
     }
@@ -642,12 +648,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
+	uint8_t *buffer;
+
     while (encode_video || encode_audio) {
         /* select the stream to encode */
         if (encode_video &&
             (!encode_audio || av_compare_ts(video_st.next_pts, video_st.enc->time_base,
             audio_st.next_pts, audio_st.enc->time_base) <= 0)) {
-            encode_video = !write_video_frame(oc, &video_st);
+            encode_video = !write_video_frame(oc, &video_st, buffer);
         }
         else {
             encode_audio = !write_audio_frame(oc, &audio_st);

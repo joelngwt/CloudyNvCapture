@@ -206,7 +206,7 @@ void SignalHandler_FullStop(int signal)
 	bFullStop = TRUE;
 }
 
-int mainNo(int argc, char *argv[]) 
+int main(int argc, char *argv[]) 
 {
 	if (argc == 1) {
 		ShowUsageAndExit(argv[0]);
