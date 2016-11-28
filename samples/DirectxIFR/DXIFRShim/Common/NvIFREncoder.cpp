@@ -129,6 +129,7 @@ enum AVCodecID codec_id)
 		exit(1);
 	}
 	ost->enc = c;
+	
 
 	AVRational time_base;
 	AVRational framerate;
@@ -139,6 +140,7 @@ enum AVCodecID codec_id)
 			(*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
 		c->bit_rate = 64000;
 		c->sample_rate = 44100;
+
 		if ((*codec)->supported_samplerates) {
 			c->sample_rate = (*codec)->supported_samplerates[0];
 			for (i = 0; (*codec)->supported_samplerates[i]; i++) {
@@ -161,6 +163,8 @@ enum AVCodecID codec_id)
 		break;
 
 	case AVMEDIA_TYPE_VIDEO:
+
+
 		c->codec_id = codec_id;
 
 		c->bit_rate = 400000;
@@ -195,6 +199,15 @@ enum AVCodecID codec_id)
 			* the motion of the chroma plane does not match the luma plane. */
 			c->mb_decision = 2;
 		}
+
+		av_opt_set(c->priv_data, "preset", "ultrafast", 0);
+		av_opt_set(c->priv_data, "tune", "zerolatency", 0);
+		
+		//av_opt_set(c->priv_data, "listen", "1", 0);
+		//av_opt_set(c->priv_data, "an", "", 0);
+
+		av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
+
 		break;
 
 	default:
@@ -542,6 +555,7 @@ void NvIFREncoder::EncoderThreadProc()
 
 
 	fmt = oc->oformat;
+	
 
 	/* Add the audio and video streams using the default format codecs
 	* and initialize the codecs. */
@@ -556,7 +570,7 @@ void NvIFREncoder::EncoderThreadProc()
 		encode_audio = 1;
 	}
 
-	if ((ret = av_dict_set(&opt, "-re", "", 0)) < 0) {
+	if ((ret = av_dict_set(&opt, "re", "", 0)) < 0) {
 		fprintf(stderr, "Failed to set listen mode for server.\n");
 		return;
 	}
@@ -615,25 +629,25 @@ void NvIFREncoder::EncoderThreadProc()
 		return;
 	}
 
-	if ((ret = av_dict_set(&optionsOutput, "preset", "ultrafast", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
-		return;
-	}
+	//if ((ret = av_dict_set(&optionsOutput, "preset", "ultrafast", 0)) < 0) {
+	//	fprintf(stderr, "Failed to set listen mode for server.\n");
+	//	return;
+	//}
 
 	if ((ret = av_dict_set(&optionsOutput, "an", "", 0)) < 0) {
 		fprintf(stderr, "Failed to set listen mode for server.\n");
 		return;
 	}
 
-	if ((ret = av_dict_set(&optionsOutput, "tune", "zerolatency", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
-		return;
-	}
+	//if ((ret = av_dict_set(&optionsOutput, "tune", "zerolatency", 0)) < 0) {
+	//	fprintf(stderr, "Failed to set listen mode for server.\n");
+	//	return;
+	//}
 
-	if ((ret = av_dict_set(&optionsOutput, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
-		return;
-	}
+	//if ((ret = av_dict_set(&optionsOutput, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0)) < 0) {
+	//	fprintf(stderr, "Failed to set listen mode for server.\n");
+	//	return;
+	//}
 
 	// TODO: Need to open one for each player
 	// Open server
