@@ -64,10 +64,8 @@ extern simplelogger::Logger *logger;
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 
 HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL };
-//unsigned char *buffer[NUMFRAMESINFLIGHT] = { NULL};
 uint8_t *buffer[NUMFRAMESINFLIGHT] = { NULL };
 
-#define STREAM_DURATION   100.0
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 
@@ -107,7 +105,6 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 enum AVCodecID codec_id)
 {
 	AVCodecContext *c;
-	int i;
 
 	/* find the encoder */
 	*codec = avcodec_find_encoder(codec_id);
@@ -129,90 +126,46 @@ enum AVCodecID codec_id)
 		exit(1);
 	}
 	ost->enc = c;
-	
 
 	AVRational time_base;
 	AVRational framerate;
 
-	switch ((*codec)->type) {
-	case AVMEDIA_TYPE_AUDIO:
-		c->sample_fmt = (*codec)->sample_fmts ?
-			(*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
-		c->bit_rate = 64000;
-		c->sample_rate = 44100;
+	c->codec_id = codec_id;
+	c->bit_rate = 400000;
+	/* Resolution must be a multiple of two. */
+	c->width = 1920;
+	c->height = 1080;
+	/* timebase: This is the fundamental unit of time (in seconds) in terms
+	* of which frame timestamps are represented. For fixed-fps content,
+	* timebase should be 1/framerate and timestamp increments should be
+	* identical to 1. */
+	time_base = { 1, STREAM_FRAME_RATE };
+	ost->st->time_base = time_base;
+	c->time_base = ost->st->time_base;
+	c->delay = 0;
+	framerate = { 25, 1 };
+	c->framerate = framerate;
+	c->has_b_frames = 0;
+	c->max_b_frames = 0;
+	c->rc_min_vbv_overflow_use = 400000;
+	c->thread_count = 1;
 
-		if ((*codec)->supported_samplerates) {
-			c->sample_rate = (*codec)->supported_samplerates[0];
-			for (i = 0; (*codec)->supported_samplerates[i]; i++) {
-				if ((*codec)->supported_samplerates[i] == 44100)
-					c->sample_rate = 44100;
-			}
-		}
-		c->channels = av_get_channel_layout_nb_channels(c->channel_layout);
-		c->channel_layout = AV_CH_LAYOUT_STEREO;
-		if ((*codec)->channel_layouts) {
-			c->channel_layout = (*codec)->channel_layouts[0];
-			for (i = 0; (*codec)->channel_layouts[i]; i++) {
-				if ((*codec)->channel_layouts[i] == AV_CH_LAYOUT_STEREO)
-					c->channel_layout = AV_CH_LAYOUT_STEREO;
-			}
-		}
-		c->channels = av_get_channel_layout_nb_channels(c->channel_layout);
-		time_base = { 1, c->sample_rate };
-		ost->st->time_base = time_base;
-		break;
-
-	case AVMEDIA_TYPE_VIDEO:
-
-
-		c->codec_id = codec_id;
-
-		c->bit_rate = 400000;
-		/* Resolution must be a multiple of two. */
-		c->width = 1920;
-		c->height = 1080;
-		/* timebase: This is the fundamental unit of time (in seconds) in terms
-		* of which frame timestamps are represented. For fixed-fps content,
-		* timebase should be 1/framerate and timestamp increments should be
-		* identical to 1. */
-		time_base = { 1, STREAM_FRAME_RATE };
-		ost->st->time_base = time_base;
-		c->time_base = ost->st->time_base;
-		c->delay = 0;
-		framerate = { 25, 1 };
-		c->framerate = framerate;
-		c->has_b_frames = 0;
-		c->max_b_frames = 0;
-		c->rc_min_vbv_overflow_use = 400000;
-		c->thread_count = 1;
-		
-
-		c->gop_size = 30; /* emit one intra frame every twelve frames at most */
-		c->pix_fmt = STREAM_PIX_FMT;
-		if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-			/* just for testing, we also add B-frames */
-			c->max_b_frames = 0; // original: 2
-		}
-		if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-			/* Needed to avoid using macroblocks in which some coeffs overflow.
-			* This does not happen with normal video, it just happens here as
-			* the motion of the chroma plane does not match the luma plane. */
-			c->mb_decision = 2;
-		}
-
-		av_opt_set(c->priv_data, "preset", "ultrafast", 0);
-		av_opt_set(c->priv_data, "tune", "zerolatency", 0);
-		
-		//av_opt_set(c->priv_data, "listen", "1", 0);
-		//av_opt_set(c->priv_data, "an", "", 0);
-
-		av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
-
-		break;
-
-	default:
-		break;
+	c->gop_size = 30; /* emit one intra frame every twelve frames at most */
+	c->pix_fmt = STREAM_PIX_FMT;
+	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+		/* just for testing, we also add B-frames */
+		c->max_b_frames = 0; // original: 2
 	}
+	if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+		/* Needed to avoid using macroblocks in which some coeffs overflow.
+		* This does not happen with normal video, it just happens here as
+		* the motion of the chroma plane does not match the luma plane. */
+		c->mb_decision = 2;
+	}
+
+	av_opt_set(c->priv_data, "preset", "ultrafast", 0);
+	av_opt_set(c->priv_data, "tune", "zerolatency", 0);
+	av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
 
 	/* Some formats want stream headers to be separate. */
 	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
@@ -289,7 +242,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 /* Prepare a dummy image. */
-static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height, uint8_t *buffer)
+static void fill_yuv_image(AVFrame *pict, int width, int height, uint8_t *buffer)
 //static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height)
 {
 	pict->width = width;
@@ -297,33 +250,16 @@ static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height
 	pict->format = AV_PIX_FMT_YUV420P;
 
 	avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
-	//int x, y, i;
-	//
-	//i = frame_index;
-	//
-	///* Y */
-	//for (y = 0; y < height; y++)
-	//    for (x = 0; x < width; x++)
-	//        pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
-	//
-	///* Cb and Cr */
-	//for (y = 0; y < height / 2; y++) {
-	//    for (x = 0; x < width / 2; x++) {
-	//        pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
-	//        pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
-	//    }
-	//}
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 {
 	AVCodecContext *c = ost->enc;
-	AVRational tb_b = { 1, 1 };
+	//AVRational tb_b = { 1, 1 };
 
 	/* check if we want to generate more frames */
-	if (av_compare_ts(ost->next_pts, c->time_base,
-		STREAM_DURATION, tb_b) >= 0)
-		return NULL;
+	//if (av_compare_ts(ost->next_pts, c->time_base, STREAM_DURATION, tb_b) >= 0)
+	//	return NULL;
 
 	/* when we pass a frame to the encoder, it may keep a reference to it
 	* internally; make sure we do not overwrite it here */
@@ -345,13 +281,13 @@ static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 				exit(1);
 			}
 		}
-		fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height, buffer);
+		fill_yuv_image(ost->tmp_frame, c->width, c->height, buffer);
 		sws_scale(ost->sws_ctx,
 			(const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
 			0, c->height, ost->frame->data, ost->frame->linesize);
 	}
 	else {
-		fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height, buffer);
+		fill_yuv_image(ost->frame, c->width, c->height, buffer);
 	}
 
 	ost->frame->pts = ost->next_pts++;
@@ -509,16 +445,21 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
 void NvIFREncoder::EncoderThreadProc() 
 {
-	OutputStream video_st = { 0 }, audio_st = { 0 };
-	const char *filename;
+	OutputStream video_st = { 0 };
+	const char *filename = NULL;
 	AVOutputFormat *fmt;
 	AVFormatContext *oc;
-	AVCodec *audio_codec, *video_codec;
+	AVCodec *video_codec;
 	int ret;
-	int have_video = 0, have_audio = 0;
-	int encode_video = 0, encode_audio = 0;
+	int have_video = 0;
+	int encode_video = 0;
 	AVDictionary *opt = NULL;
-	int i;
+
+	const char *filename2 = NULL;
+	AVFormatContext *oc2;
+	AVOutputFormat *fmt2;
+	OutputStream video_st2 = { 0 };
+	AVCodec *video_codec2;
 
 	/* Initialize libavcodec, and register all codecs and formats. */
 	av_register_all();
@@ -552,10 +493,20 @@ void NvIFREncoder::EncoderThreadProc()
 		fprintf(stderr, "No output context.\n");
 		return;
 	}
+	// oc2
+	avformat_alloc_output_context2(&oc2, NULL, NULL, "output2.h264");
+	if (!oc2) {
+		printf("Could not deduce output format from file extension: using h264.\n");
+		avformat_alloc_output_context2(&oc2, NULL, "h264", filename2);
+	}
+	if (!oc2) {
+		fprintf(stderr, "No output context.\n");
+		return;
+	}
 
 
 	fmt = oc->oformat;
-	
+	fmt2 = oc2->oformat;
 
 	/* Add the audio and video streams using the default format codecs
 	* and initialize the codecs. */
@@ -564,23 +515,28 @@ void NvIFREncoder::EncoderThreadProc()
 		have_video = 1;
 		encode_video = 1;
 	}
-	if (fmt->audio_codec != AV_CODEC_ID_NONE) {
-		add_stream(&audio_st, oc, &audio_codec, fmt->audio_codec);
-		have_audio = 1;
-		encode_audio = 1;
+	else
+	{
+		return;
+	}
+	if (fmt2->video_codec != AV_CODEC_ID_NONE) {
+		add_stream(&video_st2, oc2, &video_codec2, fmt2->video_codec);
+		have_video = 1;
+		encode_video = 1;
 	}
 
 	if ((ret = av_dict_set(&opt, "re", "", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
+		fprintf(stderr, "Failed to set -re mode.\n");
 		return;
 	}
 
 	/* Now that all the parameters are set, we can open the audio and
 	* video codecs and allocate the necessary encode buffers. */
-	if (have_video)
-		open_video(oc, video_codec, &video_st, opt);
-
+	open_video(oc, video_codec, &video_st, opt);
 	av_dump_format(oc, 0, filename, 1);
+
+	open_video(oc2, video_codec2, &video_st2, opt);
+	av_dump_format(oc2, 0, filename2, 1);
 
 	AVDictionary *optionsOutput = NULL;
 	
@@ -617,44 +573,40 @@ void NvIFREncoder::EncoderThreadProc()
 	}
 	LOG_DEBUG(logger, "NvIFRSetUpTargetBufferToSys succeeded");
 
-	//if (!pStreamer) {
-	//	if (!pSharedStreamer) {
-			// FFMPEG is started up here
-			//pSharedStreamer = Util4Streamer::GetStreamer(pAppParam, pAppParam->width, pAppParam->height);
-
-			
-			// options. equivalent to "-listen 1"
 	if ((ret = av_dict_set(&optionsOutput, "listen", "1", 0)) < 0) {
 		fprintf(stderr, "Failed to set listen mode for server.\n");
 		return;
 	}
 
-	//if ((ret = av_dict_set(&optionsOutput, "preset", "ultrafast", 0)) < 0) {
-	//	fprintf(stderr, "Failed to set listen mode for server.\n");
-	//	return;
-	//}
-
 	if ((ret = av_dict_set(&optionsOutput, "an", "", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
+		fprintf(stderr, "Failed to set -an mode.\n");
 		return;
 	}
-
-	//if ((ret = av_dict_set(&optionsOutput, "tune", "zerolatency", 0)) < 0) {
-	//	fprintf(stderr, "Failed to set listen mode for server.\n");
-	//	return;
-	//}
-
-	//if ((ret = av_dict_set(&optionsOutput, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0)) < 0) {
-	//	fprintf(stderr, "Failed to set listen mode for server.\n");
-	//	return;
-	//}
 
 	// TODO: Need to open one for each player
 	// Open server
-	if ((ret = avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
-		fprintf(stderr, "Failed to open server.\n");
-		return;
-	}
+	for (int i = 0; i < pAppParam->numPlayers; ++i)
+	{
+		std::stringstream *HTTPUrl = new std::stringstream();
+		*HTTPUrl << "http://172.26.186.80:" << 30000 + i;
+
+		if (i == 0)
+		{
+			if((ret = avio_open2(&oc->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+				fprintf(stderr, "Failed to open server.\n");
+				return;
+			}
+		}
+		if (i == 1)
+		{
+			if ((ret = avio_open2(&oc2->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+				fprintf(stderr, "Failed to open server.\n");
+				return;
+			}
+		}
+
+		
+	}	
 
 	// TODO: Also do this for each player
 	/* Write the stream header, if any. */
@@ -663,15 +615,14 @@ void NvIFREncoder::EncoderThreadProc()
 		fprintf(stderr, "Error occurred when opening output file.\n");
 		return;
 	}
-		//}
-	//	pStreamer = pSharedStreamer;
-	//}
-	//if (!pStreamer->IsReady()) {
-	//	LOG_ERROR(logger, "Cannot create FFMPEG pipe for streaming.");
-	//	SetEvent(hevtInitEncoderDone);
-	//	CleanupNvIFR();
-	//	return;
-	//}
+
+	// TODO: Also do this for each player
+	/* Write the stream header, if any. */
+	ret = avformat_write_header(oc2, &opt);
+	if (ret < 0) {
+		fprintf(stderr, "Error occurred when opening output file.\n");
+		return;
+	}
 
 	bInitEncoderSuccessful = TRUE;
 	SetEvent(hevtInitEncoderDone);
@@ -711,6 +662,11 @@ void NvIFREncoder::EncoderThreadProc()
 			}
 
 			encode_video = !write_video_frame(oc, &video_st, buffer[0]);
+			if (pAppParam->numPlayers > 1)
+			{
+				encode_video = !write_video_frame(oc2, &video_st2, buffer[0]);
+			}
+			
 
 			//if (pAppParam->numPlayers > 0 && numThreads1 <= 25)
 			//{
@@ -785,6 +741,23 @@ void NvIFREncoder::EncoderThreadProc()
 
 	}
 	LOG_DEBUG(logger, "Quit encoding loop");
+
+	/* Write the trailer, if any. The trailer must be written before you
+	* close the CodecContexts open when you wrote the header; otherwise
+	* av_write_trailer() may try to use memory that was freed on
+	* av_codec_close(). */
+	av_write_trailer(oc);
+
+	/* Close each codec. */
+	if (have_video)
+		close_stream(oc, &video_st);
+
+	if (!(fmt->flags & AVFMT_NOFILE))
+		/* Close the output file. */
+		avio_closep(&oc->pb);
+
+	/* free the stream */
+	avformat_free_context(oc);
 
 	CleanupNvIFR();
 }

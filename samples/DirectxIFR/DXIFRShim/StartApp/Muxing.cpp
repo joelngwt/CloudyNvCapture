@@ -434,23 +434,23 @@ static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height
 	pict->height = height;
 	pict->format = AV_PIX_FMT_YUV420P;
 	
-	avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
-    //int x, y, i;
-	//
-    //i = frame_index;
-	//
-    ///* Y */
-    //for (y = 0; y < height; y++)
-    //    for (x = 0; x < width; x++)
-    //        pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
-	//
-    ///* Cb and Cr */
-    //for (y = 0; y < height / 2; y++) {
-    //    for (x = 0; x < width / 2; x++) {
-    //        pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
-    //        pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
-    //    }
-    //}
+	//avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    int x, y, i;
+	
+    i = frame_index;
+	
+    /* Y */
+    for (y = 0; y < height; y++)
+        for (x = 0; x < width; x++)
+            pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
+	
+    /* Cb and Cr */
+    for (y = 0; y < height / 2; y++) {
+        for (x = 0; x < width / 2; x++) {
+            pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
+            pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
+        }
+    }
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
@@ -549,7 +549,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 /**************************************************************/
 /* media file output */
 
-int main1(int argc, char **argv)
+int main(int argc, char **argv)
 {
     OutputStream video_st = { 0 }, audio_st = { 0 };
     const char *filename;
@@ -561,6 +561,17 @@ int main1(int argc, char **argv)
     int encode_video = 0, encode_audio = 0;
     AVDictionary *opt = NULL;
     int i;
+
+	OutputStream video_st2 = { 0 }, audio_st2 = { 0 };
+	const char *filename2;
+	AVOutputFormat *fmt2;
+	AVFormatContext *oc2;
+	AVCodec *audio_codec2, *video_codec2;
+	int ret2;
+	int have_video2 = 0, have_audio2 = 0;
+	int encode_video2 = 0, encode_audio2 = 0;
+//	AVDictionary *opt = NULL;
+	int i2;
 
     /* Initialize libavcodec, and register all codecs and formats. */
     av_register_all();
@@ -579,6 +590,7 @@ int main1(int argc, char **argv)
     }
 
     filename = argv[1];
+	filename2 = argv[1];
     for (i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "-flags") || !strcmp(argv[i], "-fflags"))
             av_dict_set(&opt, argv[i] + 1, argv[i + 1], 0);
@@ -616,7 +628,43 @@ int main1(int argc, char **argv)
     if (have_audio)
         open_audio(oc, audio_codec, &audio_st, opt);
 
-    av_dump_format(oc, 0, filename, 1);
+	av_dump_format(oc, 0, "http://172.26.186.80:30000", 1);
+
+	// ----------- repeat 2
+
+	/* allocate the output media context */
+	avformat_alloc_output_context2(&oc2, NULL, NULL, filename2);
+	if (!oc2) {
+		printf("Could not deduce output format from file extension: using MPEG.\n");
+		avformat_alloc_output_context2(&oc2, NULL, "mpeg", filename2);
+	}
+	if (!oc2)
+		return 1;
+
+	fmt2 = oc2->oformat;
+
+	/* Add the audio and video streams using the default format codecs
+	* and initialize the codecs. */
+	if (fmt2->video_codec != AV_CODEC_ID_NONE) {
+		add_stream(&video_st2, oc2, &video_codec2, fmt2->video_codec);
+		have_video2 = 1;
+		encode_video2 = 1;
+	}
+	if (fmt2->audio_codec != AV_CODEC_ID_NONE) {
+		add_stream(&audio_st2, oc2, &audio_codec2, fmt2->audio_codec);
+		have_audio2 = 1;
+		encode_audio2 = 1;
+	}
+
+	/* Now that all the parameters are set, we can open the audio and
+	* video codecs and allocate the necessary encode buffers. */
+	if (have_video2)
+		open_video(oc2, video_codec2, &video_st2, opt);
+
+	if (have_audio2)
+		open_audio(oc2, audio_codec2, &audio_st2, opt);
+
+	av_dump_format(oc2, 0, "http://172.26.186.80:30001", 1);
 
     AVDictionary *optionsOutput = NULL;
 
@@ -628,9 +676,15 @@ int main1(int argc, char **argv)
 
     // Open server
     if ((ret = avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
-        fprintf(stderr, "Failed to open server.\n");
+        fprintf(stderr, "Failed to open server 1.\n");
         return ret;
     }
+	fprintf(stderr, "Server 1 opened.\n");
+
+	if ((ret = avio_open2(&oc2->pb, "http://172.26.186.80:30001", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+		fprintf(stderr, "Failed to open server 2.\n");
+		//return ret;
+	}
 
   // /* open the output file, if needed */
   // if (!(fmt->flags & AVFMT_NOFILE)) {
@@ -648,9 +702,16 @@ int main1(int argc, char **argv)
         return 1;
     }
 
+	/* Write the stream header, if any. */
+	ret = avformat_write_header(oc2, &opt);
+	if (ret < 0) {
+		fprintf(stderr, "Error occurred when opening output file2.\n");
+		return 1;
+	}
+
 	uint8_t *buffer;
 
-    while (encode_video || encode_audio) {
+    while (encode_video || encode_audio || encode_video2 || encode_audio2) {
         /* select the stream to encode */
         if (encode_video &&
             (!encode_audio || av_compare_ts(video_st.next_pts, video_st.enc->time_base,
@@ -660,6 +721,17 @@ int main1(int argc, char **argv)
         else {
             encode_audio = !write_audio_frame(oc, &audio_st);
         }
+
+		// ---------
+		/* select the stream to encode */
+		//if (encode_video2 &&
+		//	(!encode_audio2 || av_compare_ts(video_st2.next_pts, video_st2.enc->time_base,
+		//	audio_st2.next_pts, audio_st2.enc->time_base) <= 0)) {
+		//	encode_video2 = !write_video_frame(oc2, &video_st2, buffer);
+		//}
+		//else {
+		//	encode_audio2 = !write_audio_frame(oc2, &audio_st2);
+		//}
     }
 
     /* Write the trailer, if any. The trailer must be written before you
@@ -680,6 +752,26 @@ int main1(int argc, char **argv)
 
     /* free the stream */
     avformat_free_context(oc);
+
+	// ---------------
+	/* Write the trailer, if any. The trailer must be written before you
+	* close the CodecContexts open when you wrote the header; otherwise
+	* av_write_trailer() may try to use memory that was freed on
+	* av_codec_close(). */
+	av_write_trailer(oc2);
+
+	/* Close each codec. */
+	if (have_video2)
+		close_stream(oc2, &video_st2);
+	if (have_audio2)
+		close_stream(oc2, &audio_st2);
+
+	if (!(fmt2->flags & AVFMT_NOFILE))
+		/* Close the output file. */
+		avio_closep(&oc2->pb);
+
+	/* free the stream */
+	avformat_free_context(oc2);
 
     return 0;
 }
