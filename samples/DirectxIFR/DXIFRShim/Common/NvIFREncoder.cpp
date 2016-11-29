@@ -71,6 +71,15 @@ uint8_t *buffer[NUMFRAMESINFLIGHT] = { NULL };
 
 #define SCALE_FLAGS SWS_BICUBIC
 
+AVFormatContext *oc;
+AVDictionary *optionsOutput = NULL;
+int ret;
+AVDictionary *opt = NULL;
+AVOutputFormat *fmt;
+
+bool serverOpened = false;
+int numThreads0 = 0;
+
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
 	AVStream *st;
@@ -88,6 +97,8 @@ typedef struct OutputStream {
 	struct SwsContext *sws_ctx;
 	struct SwrContext *swr_ctx;
 } OutputStream;
+
+OutputStream video_st = { 0 };
 
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
@@ -250,6 +261,23 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, uint8_t *buffer
 	pict->format = AV_PIX_FMT_YUV420P;
 
 	avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+
+    //int x, y, i;
+    //
+    //i = frame_index;
+    //
+    ///* Y */
+    //for (y = 0; y < height; y++)
+    //    for (x = 0; x < width; x++)
+    //        pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
+    //
+    ///* Cb and Cr */
+    //for (y = 0; y < height / 2; y++) {
+    //    for (x = 0; x < width / 2; x++) {
+    //        pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
+    //        pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
+    //    }
+    //}
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
@@ -282,12 +310,14 @@ static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 			}
 		}
 		fill_yuv_image(ost->tmp_frame, c->width, c->height, buffer);
+        //fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height);
 		sws_scale(ost->sws_ctx,
 			(const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
 			0, c->height, ost->frame->data, ost->frame->linesize);
 	}
 	else {
-		fill_yuv_image(ost->frame, c->width, c->height, buffer);
+        fill_yuv_image(ost->frame, c->width, c->height, buffer);
+        //fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
 	}
 
 	ost->frame->pts = ost->next_pts++;
@@ -388,157 +418,84 @@ void NvIFREncoder::StopEncoder()
 
 void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
-	// Frames are written here
-	pStreamer->Stream(buffer[0], pAppParam->width*pAppParam->height * PIXEL_SIZE, playerIndex); // Memory leak here
+    const char *filename = NULL;
+    AVCodec *video_codec;
 
-	if (playerIndex == 0)
-	{
-		numThreads1--;
-	}
-	else if (playerIndex == 1)
-	{
-		numThreads2--;
-	}
-	else if (playerIndex == 2)
-	{
-		numThreads3--;
-	}
-	else if (playerIndex == 3)
-	{
-		numThreads4--;
-	}
-	else if (playerIndex == 4)
-	{
-		numThreads5--;
-	}
-	else if (playerIndex == 5)
-	{
-		numThreads6--;
-	}
-	else if (playerIndex == 6)
-	{
-		numThreads7--;
-	}
-	else if (playerIndex == 7)
-	{
-		numThreads8--;
-	}
-	else if (playerIndex == 8)
-	{
-		numThreads9--;
-	}
-	else if (playerIndex == 9)
-	{
-		numThreads10--;
-	}
-	else if (playerIndex == 10)
-	{
-		numThreads11--;
-	}
-	else if (playerIndex == 11)
-	{
-		numThreads12--;
-	}
+    /* Initialize libavcodec, and register all codecs and formats. */
+    av_register_all();
+    // Global initialization of network components
+    avformat_network_init();
+
+    /* allocate the output media context */
+    avformat_alloc_output_context2(&oc, NULL, NULL, "output.h264");
+    if (!oc) {
+        printf("Could not deduce output format from file extension: using h264.\n");
+        LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
+        avformat_alloc_output_context2(&oc, NULL, "h264", filename);
+    }
+    if (!oc) {
+        fprintf(stderr, "No output context.\n");
+        LOG_WARN(logger, "No output context.");
+        return;
+    }
+
+    fmt = oc->oformat;
+
+    /* Add the audio and video streams using the default format codecs
+    * and initialize the codecs. */
+    if (fmt->video_codec != AV_CODEC_ID_NONE) {
+        add_stream(&video_st, oc, &video_codec, fmt->video_codec);
+    }
+
+    if ((ret = av_dict_set(&opt, "re", "", 0)) < 0) {
+        fprintf(stderr, "Failed to set -re mode.\n");
+        return;
+    }
+
+    /* Now that all the parameters are set, we can open the audio and
+    * video codecs and allocate the necessary encode buffers. */
+    open_video(oc, video_codec, &video_st, opt);
+    av_dump_format(oc, 0, filename, 1);
+
+    AVDictionary *optionsOutput = NULL;
+
+    if ((ret = av_dict_set(&optionsOutput, "listen", "1", 0)) < 0) {
+        fprintf(stderr, "Failed to set listen mode for server.\n");
+        return;
+    }
+
+    if ((ret = av_dict_set(&optionsOutput, "an", "", 0)) < 0) {
+        fprintf(stderr, "Failed to set -an mode.\n");
+        return;
+    }
+
+    // Open server
+    if ((avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+        fprintf(stderr, "Failed to open server 0.\n");
+        LOG_ERROR(logger, "Failed to open server 0.");
+        return;
+    }
+    LOG_DEBUG(logger, "Server 0 opened.");
+
+    /* Write the stream header, if any. */
+    ret = avformat_write_header(oc, &opt);
+    if (ret < 0) {
+        fprintf(stderr, "Error occurred when opening output file.\n");
+        LOG_ERROR(logger, "Error occurred when opening output file.\n");
+        return;
+    }
+
+    while (true){
+        write_video_frame(oc, &video_st, buffer[0]);
+    }
+
+    numThreads0--;
 
 	_endthread();
 }
 
 void NvIFREncoder::EncoderThreadProc() 
 {
-	OutputStream video_st = { 0 };
-	const char *filename = NULL;
-	AVOutputFormat *fmt;
-	AVFormatContext *oc;
-	AVCodec *video_codec;
-	int ret;
-	int have_video = 0;
-	int encode_video = 0;
-	AVDictionary *opt = NULL;
-
-	const char *filename2 = NULL;
-	AVFormatContext *oc2;
-	AVOutputFormat *fmt2;
-	OutputStream video_st2 = { 0 };
-	AVCodec *video_codec2;
-
-	/* Initialize libavcodec, and register all codecs and formats. */
-	av_register_all();
-	// Global initialization of network components
-	avformat_network_init();
-
-	//if (argc < 2) {
-	//	printf("usage: %s output_file\n"
-	//		"API example program to output a media file with libavformat.\n"
-	//		"This program generates a synthetic audio and video stream, encodes and\n"
-	//		"muxes them into a file named output_file.\n"
-	//		"The output format is automatically guessed according to the file extension.\n"
-	//		"Raw images can also be output by using '%%d' in the filename.\n"
-	//		"\n", argv[0]);
-	//	return 1;
-	//}
-	//
-	//filename = argv[1];
-	//for (i = 2; i + 1 < argc; i += 2) {
-	//	if (!strcmp(argv[i], "-flags") || !strcmp(argv[i], "-fflags"))
-	//		av_dict_set(&opt, argv[i] + 1, argv[i + 1], 0);
-	//}
-
-	/* allocate the output media context */
-	avformat_alloc_output_context2(&oc, NULL, NULL, "output.h264");
-	if (!oc) {
-		printf("Could not deduce output format from file extension: using h264.\n");
-		avformat_alloc_output_context2(&oc, NULL, "h264", filename);
-	}
-	if (!oc) {
-		fprintf(stderr, "No output context.\n");
-		return;
-	}
-	// oc2
-	avformat_alloc_output_context2(&oc2, NULL, NULL, "output2.h264");
-	if (!oc2) {
-		printf("Could not deduce output format from file extension: using h264.\n");
-		avformat_alloc_output_context2(&oc2, NULL, "h264", filename2);
-	}
-	if (!oc2) {
-		fprintf(stderr, "No output context.\n");
-		return;
-	}
-
-
-	fmt = oc->oformat;
-	fmt2 = oc2->oformat;
-
-	/* Add the audio and video streams using the default format codecs
-	* and initialize the codecs. */
-	if (fmt->video_codec != AV_CODEC_ID_NONE) {
-		add_stream(&video_st, oc, &video_codec, fmt->video_codec);
-		have_video = 1;
-		encode_video = 1;
-	}
-	else
-	{
-		return;
-	}
-	if (fmt2->video_codec != AV_CODEC_ID_NONE) {
-		add_stream(&video_st2, oc2, &video_codec2, fmt2->video_codec);
-		have_video = 1;
-		encode_video = 1;
-	}
-
-	if ((ret = av_dict_set(&opt, "re", "", 0)) < 0) {
-		fprintf(stderr, "Failed to set -re mode.\n");
-		return;
-	}
-
-	/* Now that all the parameters are set, we can open the audio and
-	* video codecs and allocate the necessary encode buffers. */
-	open_video(oc, video_codec, &video_st, opt);
-	av_dump_format(oc, 0, filename, 1);
-
-	open_video(oc2, video_codec2, &video_st2, opt);
-	av_dump_format(oc2, 0, filename2, 1);
-
-	AVDictionary *optionsOutput = NULL;
 	
 	/*Note: 
 	1. The D3D device for encoding must be create on a seperate thread other than the game rendering thread. 
@@ -552,7 +509,7 @@ void NvIFREncoder::EncoderThreadProc()
 		CleanupNvIFR();
 		return;
 	}
-
+    
 	NVIFR_TOSYS_SETUP_PARAMS params = { 0 }; 
 	params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER; 
 	params.eFormat = NVIFR_FORMAT_YUV_420;
@@ -562,9 +519,9 @@ void NvIFREncoder::EncoderThreadProc()
 	params.dwTargetHeight = pAppParam->height;
 	params.ppPageLockedSysmemBuffers = buffer;
 	params.ppTransferCompletionEvents = gpuEvent; 
-
+    
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
-
+    
 	if (nr != NVIFR_SUCCESS) {
 		LOG_ERROR(logger, "NvIFRSetUpTargetBufferToSys failed, nr=" << nr);
 		SetEvent(hevtInitEncoderDone);
@@ -573,193 +530,70 @@ void NvIFREncoder::EncoderThreadProc()
 	}
 	LOG_DEBUG(logger, "NvIFRSetUpTargetBufferToSys succeeded");
 
-	if ((ret = av_dict_set(&optionsOutput, "listen", "1", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
-		return;
-	}
+    // At this point, servers will all be open, but not all of them have received a client.
+    // A flag will need to be toggled to let the main thread know which servers have clients.
+    // Then, we can write frames to only those servers with clients.
 
-	if ((ret = av_dict_set(&optionsOutput, "an", "", 0)) < 0) {
-		fprintf(stderr, "Failed to set -an mode.\n");
-		return;
-	}
+    bInitEncoderSuccessful = TRUE;
+    SetEvent(hevtInitEncoderDone);
 
-	// TODO: Need to open one for each player
-	// Open server
-	for (int i = 0; i < pAppParam->numPlayers; ++i)
-	{
-		std::stringstream *HTTPUrl = new std::stringstream();
-		*HTTPUrl << "http://172.26.186.80:" << 30000 + i;
+    while (!bStopEncoder)
+    {
+        if (!UpdateBackBuffer())
+        {
+            LOG_DEBUG(logger, "UpdateBackBuffer() failed");
+        }
+   
+        NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
+   
+        if (res == NVIFR_SUCCESS)
+        {
+            DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
+            if (dwRet != WAIT_OBJECT_0)// If not signalled
+            {
+                if (dwRet != WAIT_OBJECT_0 + 1)
+                {
+                    LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
+                }
+                return;
+            }
+   
+            if (numThreads0 < 1)
+            {
+                LOG_DEBUG(logger, "Thread started");
+                HANDLE Thread0 = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
+                //WaitForSingleObject(Thread0, INFINITE);
+                numThreads0++;
+            }
+            
+            ResetEvent(gpuEvent[0]);
+        }
+        else
+        {
+            LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
+        }
+        // Prevent doing extra work (25 FPS)
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    }
+    LOG_DEBUG(logger, "Quit encoding loop");
 
-		if (i == 0)
-		{
-			if((ret = avio_open2(&oc->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
-				fprintf(stderr, "Failed to open server.\n");
-				return;
-			}
-		}
-		if (i == 1)
-		{
-			if ((ret = avio_open2(&oc2->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
-				fprintf(stderr, "Failed to open server.\n");
-				return;
-			}
-		}
+    /* Write the trailer, if any. The trailer must be written before you
+    * close the CodecContexts open when you wrote the header; otherwise
+    * av_write_trailer() may try to use memory that was freed on
+    * av_codec_close(). */
+    av_write_trailer(oc);
 
-		
-	}	
+    /* Close each codec. */
+    close_stream(oc, &video_st);
 
-	// TODO: Also do this for each player
-	/* Write the stream header, if any. */
-	ret = avformat_write_header(oc, &opt);
-	if (ret < 0) {
-		fprintf(stderr, "Error occurred when opening output file.\n");
-		return;
-	}
+    if (!(fmt->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+        avio_closep(&oc->pb);
 
-	// TODO: Also do this for each player
-	/* Write the stream header, if any. */
-	ret = avformat_write_header(oc2, &opt);
-	if (ret < 0) {
-		fprintf(stderr, "Error occurred when opening output file.\n");
-		return;
-	}
+    /* free the stream */
+    avformat_free_context(oc);
 
-	bInitEncoderSuccessful = TRUE;
-	SetEvent(hevtInitEncoderDone);
-
-	numThreads1 = 0;
-	numThreads2 = 0;
-	numThreads3 = 0;
-	numThreads4 = 0;
-	numThreads5 = 0;
-	numThreads6 = 0;
-	numThreads7 = 0;
-	numThreads8 = 0;
-	numThreads9 = 0;
-	numThreads10 = 0;
-	numThreads11 = 0;
-	numThreads12 = 0;
-
-	while (!bStopEncoder) 
-	{
-		if (!UpdateBackBuffer()) 
-		{
-			LOG_DEBUG(logger, "UpdateBackBuffer() failed");
-		}
-		
-		NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
-		
-		if (res == NVIFR_SUCCESS) 
-		{
-			DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
-			if (dwRet != WAIT_OBJECT_0)// If not signalled
-			{ 
-				if (dwRet != WAIT_OBJECT_0 + 1) 
-				{
-					LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
-				}
-				return;
-			}
-
-			encode_video = !write_video_frame(oc, &video_st, buffer[0]);
-			if (pAppParam->numPlayers > 1)
-			{
-				encode_video = !write_video_frame(oc2, &video_st2, buffer[0]);
-			}
-			
-
-			//if (pAppParam->numPlayers > 0 && numThreads1 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
-			//	numThreads1++;
-			//}
-			//if (pAppParam->numPlayers > 1 && numThreads2 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
-			//	numThreads2++;
-			//}
-			//if (pAppParam->numPlayers > 2 && numThreads3 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
-			//	numThreads3++;
-			//}
-			//if (pAppParam->numPlayers > 3 && numThreads4 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
-			//	numThreads4++;
-			//}
-			//if (pAppParam->numPlayers > 4 && numThreads5 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
-			//	numThreads5++;
-			//}
-			//if (pAppParam->numPlayers > 5 && numThreads6 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
-			//	numThreads6++;
-			//}
-			//if (pAppParam->numPlayers > 6 && numThreads7 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
-			//	numThreads7++;
-			//}
-			//if (pAppParam->numPlayers > 7 && numThreads8 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
-			//	numThreads8++;
-			//}
-			//if (pAppParam->numPlayers > 8 && numThreads9 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
-			//	numThreads9++;
-			//}
-			//if (pAppParam->numPlayers > 9 && numThreads10 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
-			//	numThreads10++;
-			//}
-			//if (pAppParam->numPlayers > 10 && numThreads11 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
-			//	numThreads11++;
-			//}
-			//if (pAppParam->numPlayers > 11 && numThreads12 <= 25)
-			//{
-			//	FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
-			//	numThreads12++;
-			//}
-			ResetEvent(gpuEvent[0]);
-		}
-		else 
-		{
-			LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
-		}
-		
-
-		// Prevent doing extra work (25 FPS)
-		std::this_thread::sleep_for(std::chrono::milliseconds(40));
-
-	}
-	LOG_DEBUG(logger, "Quit encoding loop");
-
-	/* Write the trailer, if any. The trailer must be written before you
-	* close the CodecContexts open when you wrote the header; otherwise
-	* av_write_trailer() may try to use memory that was freed on
-	* av_codec_close(). */
-	av_write_trailer(oc);
-
-	/* Close each codec. */
-	if (have_video)
-		close_stream(oc, &video_st);
-
-	if (!(fmt->flags & AVFMT_NOFILE))
-		/* Close the output file. */
-		avio_closep(&oc->pb);
-
-	/* free the stream */
-	avformat_free_context(oc);
-
-	CleanupNvIFR();
+	//CleanupNvIFR();
 }
 
 Streamer * NvIFREncoder::pSharedStreamer = NULL;
