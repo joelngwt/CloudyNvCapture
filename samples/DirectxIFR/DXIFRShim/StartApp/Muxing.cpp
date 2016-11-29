@@ -8,15 +8,15 @@
 
 extern "C"
 {
-    #include <libavutil/avassert.h>
-    #include <libavutil/channel_layout.h>
-    #include <libavutil/opt.h>
-    #include <libavutil/mathematics.h>
+#include <libavutil/avassert.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/opt.h>
+#include <libavutil/mathematics.h>
     //#include <libavutil/timestamp.h>
-    #include <libavformat/avformat.h>
-    #include <libswscale/swscale.h>
-    #include <libswresample/swresample.h>
-	#include <libavutil/buffer.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
+#include <libavutil/buffer.h>
 }
 
 #pragma comment(lib, "avcodec.lib")
@@ -37,17 +37,11 @@ extern "C"
 AVFormatContext *oc;
 AVDictionary *optionsOutput = NULL;
 int ret;
-int have_video = 0;
-int encode_video = 0;
 AVDictionary *opt = NULL;
 AVOutputFormat *fmt;
 
 AVFormatContext *oc2;
-AVDictionary *optionsOutput2 = NULL;
-int have_video2 = 0;
-int encode_video2 = 0;
-AVDictionary *opt2 = NULL;
-AVOutputFormat *fmt2;
+AVDictionary *optionsOutput2 = NULL; // Removing this breaks multithreading
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -107,12 +101,12 @@ enum AVCodecID codec_id)
         exit(1);
     }
 
-	ost->st = avformat_new_stream(outCtx, NULL);
+    ost->st = avformat_new_stream(outCtx, NULL);
     if (!ost->st) {
         fprintf(stderr, "Could not allocate stream\n");
         exit(1);
     }
-	ost->st->id = outCtx->nb_streams - 1;
+    ost->st->id = outCtx->nb_streams - 1;
     c = avcodec_alloc_context3(*codec);
     if (!c) {
         fprintf(stderr, "Could not alloc an encoding context\n");
@@ -149,7 +143,7 @@ enum AVCodecID codec_id)
     }
 
     /* Some formats want stream headers to be separate. */
-	if (outCtx->oformat->flags & AVFMT_GLOBALHEADER)
+    if (outCtx->oformat->flags & AVFMT_GLOBALHEADER)
         c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 }
 
@@ -226,20 +220,20 @@ static void open_video(AVFormatContext *outCtx, AVCodec *codec, OutputStream *os
 static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height, uint8_t *buffer)
 //static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height)
 {
-	pict->width = width;
-	pict->height = height;
-	pict->format = AV_PIX_FMT_YUV420P;
-	
-	//avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    pict->width = width;
+    pict->height = height;
+    pict->format = AV_PIX_FMT_YUV420P;
+
+    //avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
     int x, y, i;
-	
+
     i = frame_index;
-	
+
     /* Y */
     for (y = 0; y < height; y++)
         for (x = 0; x < width; x++)
             pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
-	
+
     /* Cb and Cr */
     for (y = 0; y < height / 2; y++) {
         for (x = 0; x < width / 2; x++) {
@@ -279,13 +273,13 @@ static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
                 exit(1);
             }
         }
-		fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height, buffer);
+        fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height, buffer);
         sws_scale(ost->sws_ctx,
             (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
             0, c->height, ost->frame->data, ost->frame->linesize);
     }
     else {
-		fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height, buffer);
+        fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height, buffer);
     }
 
     ost->frame->pts = ost->next_pts++;
@@ -319,7 +313,7 @@ static int write_video_frame(AVFormatContext *outCtx, OutputStream *ost, uint8_t
     }
 
     if (got_packet) {
-		ret = write_frame(outCtx, &c->time_base, ost->st, &pkt);
+        ret = write_frame(outCtx, &c->time_base, ost->st, &pkt);
     }
     else {
         ret = 0;
@@ -344,86 +338,84 @@ static void close_stream(AVFormatContext *outCtx, OutputStream *ost)
 
 void outputThread0(void * ignored)
 {
-	av_dump_format(oc, 0, "http://172.26.186.80:30000", 1);
-	// Open server
-	if ((avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
-		fprintf(stderr, "Failed to open server 0.\n");
-		return;
-	}
-	fprintf(stderr, "Server 0 opened.\n");
+    av_dump_format(oc, 0, "http://172.26.186.80:30000", 1);
+    // Open server
+    if ((avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+        fprintf(stderr, "Failed to open server 0.\n");
+        return;
+    }
+    fprintf(stderr, "Server 0 opened.\n");
 
-	/* Write the stream header, if any. */
-	ret = avformat_write_header(oc, &opt);
-	if (ret < 0) {
-		fprintf(stderr, "Error occurred when opening output file.\n");
-		return;
-	}
+    /* Write the stream header, if any. */
+    ret = avformat_write_header(oc, &opt);
+    if (ret < 0) {
+        fprintf(stderr, "Error occurred when opening output file.\n");
+        return;
+    }
 
-	uint8_t *buffer;
+    uint8_t *buffer;
 
-	while (encode_video) {
-		/* select the stream to encode */
-		encode_video = !write_video_frame(oc, &video_st, buffer);
-	}
+    while (true) {
+        /* select the stream to encode */
+        write_video_frame(oc, &video_st, buffer);
+    }
 
-	/* Write the trailer, if any. The trailer must be written before you
-	* close the CodecContexts open when you wrote the header; otherwise
-	* av_write_trailer() may try to use memory that was freed on
-	* av_codec_close(). */
-	av_write_trailer(oc);
+    /* Write the trailer, if any. The trailer must be written before you
+    * close the CodecContexts open when you wrote the header; otherwise
+    * av_write_trailer() may try to use memory that was freed on
+    * av_codec_close(). */
+    av_write_trailer(oc);
 
-	/* Close each codec. */
-	if (have_video)
-		close_stream(oc, &video_st);
+    /* Close each codec. */
+    close_stream(oc, &video_st);
 
-	if (!(fmt->flags & AVFMT_NOFILE))
-		/* Close the output file. */
-		avio_closep(&oc->pb);
+    if (!(fmt->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+        avio_closep(&oc->pb);
 
-	/* free the stream */
-	avformat_free_context(oc);
+    /* free the stream */
+    avformat_free_context(oc);
 }
 
 void outputThread1(void * ignored)
 {
-	av_dump_format(oc2, 0, "http://172.26.186.80:30001", 1);
-	// Open server
-	if ((avio_open2(&oc2->pb, "http://172.26.186.80:30001", AVIO_FLAG_WRITE, NULL, &optionsOutput2)) < 0) {
-		fprintf(stderr, "Failed to open server 1.\n");
-		return;
-	}
-	fprintf(stderr, "Server 1 opened.\n");
+    av_dump_format(oc2, 0, "http://172.26.186.80:30001", 1);
+    // Open server
+    if ((avio_open2(&oc2->pb, "http://172.26.186.80:30001", AVIO_FLAG_WRITE, NULL, &optionsOutput2)) < 0) {
+        fprintf(stderr, "Failed to open server 1.\n");
+        return;
+    }
+    fprintf(stderr, "Server 1 opened.\n");
 
-	/* Write the stream header, if any. */
-	ret = avformat_write_header(oc2, &opt2);
-	if (ret < 0) {
-		fprintf(stderr, "Error occurred when opening output file.\n");
-		return;
-	}
+    /* Write the stream header, if any. */
+    ret = avformat_write_header(oc2, &opt);
+    if (ret < 0) {
+        fprintf(stderr, "Error occurred when opening output file.\n");
+        return;
+    }
 
-	uint8_t *buffer;
+    uint8_t *buffer;
 
-	while (encode_video2) {
-		/* select the stream to encode */
-		encode_video2 = !write_video_frame(oc2, &video_st2, buffer);
-	}
+    while (true) {
+        /* select the stream to encode */
+        write_video_frame(oc2, &video_st2, buffer);
+    }
 
-	/* Write the trailer, if any. The trailer must be written before you
-	* close the CodecContexts open when you wrote the header; otherwise
-	* av_write_trailer() may try to use memory that was freed on
-	* av_codec_close(). */
-	av_write_trailer(oc2);
+    /* Write the trailer, if any. The trailer must be written before you
+    * close the CodecContexts open when you wrote the header; otherwise
+    * av_write_trailer() may try to use memory that was freed on
+    * av_codec_close(). */
+    av_write_trailer(oc2);
 
-	/* Close each codec. */
-	if (have_video2)
-		close_stream(oc2, &video_st2);
+    /* Close each codec. */
+    close_stream(oc2, &video_st2);
 
-	if (!(fmt2->flags & AVFMT_NOFILE))
-		/* Close the output file. */
-		avio_closep(&oc2->pb);
+    if (!(fmt->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+        avio_closep(&oc2->pb);
 
-	/* free the stream */
-	avformat_free_context(oc2);
+    /* free the stream */
+    avformat_free_context(oc2);
 }
 
 /**************************************************************/
@@ -431,12 +423,11 @@ void outputThread1(void * ignored)
 
 int main(int argc, char **argv)
 {
-	const char *filename;
-	AVCodec *video_codec;
+    const char *filename;
+    AVCodec *video_codec;
     int i;
 
-	const char *filename2;
-	AVCodec *video_codec2;
+    const char *filename2;
 
     /* Initialize libavcodec, and register all codecs and formats. */
     av_register_all();
@@ -455,7 +446,7 @@ int main(int argc, char **argv)
     }
 
     filename = argv[1];
-	filename2 = argv[1];
+    filename2 = argv[1];
     for (i = 2; i + 1 < argc; i += 2) {
         if (!strcmp(argv[i], "-flags") || !strcmp(argv[i], "-fflags"))
             av_dict_set(&opt, argv[i] + 1, argv[i + 1], 0);
@@ -476,14 +467,11 @@ int main(int argc, char **argv)
     * and initialize the codecs. */
     if (fmt->video_codec != AV_CODEC_ID_NONE) {
         add_stream(&video_st, oc, &video_codec, fmt->video_codec);
-        have_video = 1;
-        encode_video = 1;
     }
 
     /* Now that all the parameters are set, we can open the audio and
     * video codecs and allocate the necessary encode buffers. */
-    if (have_video)
-        open_video(oc, video_codec, &video_st, opt);
+    open_video(oc, video_codec, &video_st, opt);
 
     // options. equivalent to "-listen 1"
     if ((ret = av_dict_set(&optionsOutput, "listen", "1", 0)) < 0) {
@@ -491,54 +479,49 @@ int main(int argc, char **argv)
         return ret;
     }
 
-	// ------------- copy 2 -----------------
-	/* allocate the output media context */
-	avformat_alloc_output_context2(&oc2, NULL, NULL, filename2);
-	if (!oc2) {
-		printf("Could not deduce output format from file extension: using MPEG.\n");
-		avformat_alloc_output_context2(&oc2, NULL, "mpeg", filename2);
-	}
-	if (!oc2)
-		return 1;
+    // ------------- copy 2 -----------------
+    /* allocate the output media context */
+    avformat_alloc_output_context2(&oc2, NULL, NULL, filename2);
+    if (!oc2) {
+        printf("Could not deduce output format from file extension: using MPEG.\n");
+        avformat_alloc_output_context2(&oc2, NULL, "mpeg", filename2);
+    }
+    if (!oc2)
+        return 1;
 
-	fmt2 = oc2->oformat;
+    /* Add the audio and video streams using the default format codecs
+    * and initialize the codecs. */
+    if (fmt->video_codec != AV_CODEC_ID_NONE) {
+        add_stream(&video_st2, oc2, &video_codec, fmt->video_codec);
+    }
 
-	/* Add the audio and video streams using the default format codecs
-	* and initialize the codecs. */
-	if (fmt2->video_codec != AV_CODEC_ID_NONE) {
-		add_stream(&video_st2, oc2, &video_codec2, fmt2->video_codec);
-		have_video2 = 1;
-		encode_video2 = 1;
-	}
+    /* Now that all the parameters are set, we can open the audio and
+    * video codecs and allocate the necessary encode buffers. */
+    open_video(oc2, video_codec, &video_st2, opt);
 
-	/* Now that all the parameters are set, we can open the audio and
-	* video codecs and allocate the necessary encode buffers. */
-	if (have_video2)
-		open_video(oc2, video_codec2, &video_st2, opt2);
-
-	// options. equivalent to "-listen 1"
-	if ((ret = av_dict_set(&optionsOutput2, "listen", "1", 0)) < 0) {
-		fprintf(stderr, "Failed to set listen mode for server.\n");
-		return ret;
-	}
+    // options. equivalent to "-listen 1"
+    if ((ret = av_dict_set(&optionsOutput2, "listen", "1", 0)) < 0) {
+        fprintf(stderr, "Failed to set listen mode for server.\n");
+        return ret;
+    }
 
     // Single threaded open server
 
-	HANDLE Thread0 = (HANDLE)_beginthread(outputThread0, 0, NULL);
-	HANDLE Thread1 = (HANDLE)_beginthread(outputThread1, 0, NULL);
-	WaitForSingleObject(Thread0, INFINITE);
-	WaitForSingleObject(Thread1, INFINITE);
+    HANDLE Thread0 = (HANDLE)_beginthread(outputThread0, 0, NULL);
+    HANDLE Thread1 = (HANDLE)_beginthread(outputThread1, 0, NULL);
+    WaitForSingleObject(Thread0, INFINITE);
+    WaitForSingleObject(Thread1, INFINITE);
 
-  // /* open the output file, if needed */
-  // if (!(fmt->flags & AVFMT_NOFILE)) {
-  //     ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
-  //     if (ret < 0) {
-  //         fprintf(stderr, "Could not open '%s'.\n", filename);
-  //         return 1;
-  //     }
-  // }
+    // /* open the output file, if needed */
+    // if (!(fmt->flags & AVFMT_NOFILE)) {
+    //     ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
+    //     if (ret < 0) {
+    //         fprintf(stderr, "Could not open '%s'.\n", filename);
+    //         return 1;
+    //     }
+    // }
 
-	
+
 
     return 0;
 }
