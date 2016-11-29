@@ -435,7 +435,7 @@ void NvIFREncoder::StopEncoder()
 
 void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
-    if (playerIndex == 0 && serverOpened1 == false)
+    if (serverOpened1 == false)
     {
         const char *filename = NULL;
         AVCodec *video_codec;
@@ -514,7 +514,7 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
 void NvIFREncoder::FFMPEGThreadProc2(int playerIndex)
 {
-    if (playerIndex == 1 && serverOpened2 == false)
+    if (serverOpened2 == false)
     {
         const char *filename2 = NULL;
         AVCodec *video_codec2;
@@ -537,7 +537,7 @@ void NvIFREncoder::FFMPEGThreadProc2(int playerIndex)
             return;
         }
 
-        fmt2 = oc->oformat;
+        fmt2 = oc2->oformat;
 
         /* Add the audio and video streams using the default format codecs
         * and initialize the codecs. */
@@ -557,12 +557,12 @@ void NvIFREncoder::FFMPEGThreadProc2(int playerIndex)
 
         AVDictionary *optionsOutput2 = NULL;
 
-        if ((ret = av_dict_set(&optionsOutput2, "listen", "1", 0)) < 0) {
+        if ((ret2 = av_dict_set(&optionsOutput2, "listen", "1", 0)) < 0) {
             fprintf(stderr, "Failed to set listen mode for server.\n");
             return;
         }
 
-        if ((ret = av_dict_set(&optionsOutput2, "an", "", 0)) < 0) {
+        if ((ret2 = av_dict_set(&optionsOutput2, "an", "", 0)) < 0) {
             fprintf(stderr, "Failed to set -an mode.\n");
             return;
         }
@@ -576,8 +576,8 @@ void NvIFREncoder::FFMPEGThreadProc2(int playerIndex)
         LOG_DEBUG(logger, "Server 1 opened.");
 
         /* Write the stream header, if any. */
-        ret = avformat_write_header(oc2, &opt2);
-        if (ret < 0) {
+        ret2 = avformat_write_header(oc2, &opt2);
+        if (ret2 < 0) {
             fprintf(stderr, "Error occurred when opening output file.\n");
             LOG_ERROR(logger, "Error occurred when opening output file.\n");
             return;
@@ -636,16 +636,16 @@ void NvIFREncoder::EncoderThreadProc()
 
     numThreads1 = 0;
     numThreads2 = 0;
-    numThreads3 = 0;
-    numThreads4 = 0;
-    numThreads5 = 0;
-    numThreads6 = 0;
-    numThreads7 = 0;
-    numThreads8 = 0;
-    numThreads9 = 0;
-    numThreads10 = 0;
-    numThreads11 = 0;
-    numThreads12 = 0;
+    //numThreads3 = 0;
+    //numThreads4 = 0;
+    //numThreads5 = 0;
+    //numThreads6 = 0;
+    //numThreads7 = 0;
+    //numThreads8 = 0;
+    //numThreads9 = 0;
+    //numThreads10 = 0;
+    //numThreads11 = 0;
+    //numThreads12 = 0;
 
     while (!bStopEncoder)
     {
@@ -678,56 +678,56 @@ void NvIFREncoder::EncoderThreadProc()
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
                 numThreads2++;
             }
-            if (pAppParam->numPlayers > 2 && numThreads3 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
-                numThreads3++;
-            }
-            if (pAppParam->numPlayers > 3 && numThreads4 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
-                numThreads4++;
-            }
-            if (pAppParam->numPlayers > 4 && numThreads5 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
-                numThreads5++;
-            }
-            if (pAppParam->numPlayers > 5 && numThreads6 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
-                numThreads6++;
-            }
-            if (pAppParam->numPlayers > 6 && numThreads7 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
-                numThreads7++;
-            }
-            if (pAppParam->numPlayers > 7 && numThreads8 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
-                numThreads8++;
-            }
-            if (pAppParam->numPlayers > 8 && numThreads9 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
-                numThreads9++;
-            }
-            if (pAppParam->numPlayers > 9 && numThreads10 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
-                numThreads10++;
-            }
-            if (pAppParam->numPlayers > 10 && numThreads11 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
-                numThreads11++;
-            }
-            if (pAppParam->numPlayers > 11 && numThreads12 < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
-                numThreads12++;
-            }
+            //if (pAppParam->numPlayers > 2 && numThreads3 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
+            //    numThreads3++;
+            //}
+            //if (pAppParam->numPlayers > 3 && numThreads4 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
+            //    numThreads4++;
+            //}
+            //if (pAppParam->numPlayers > 4 && numThreads5 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
+            //    numThreads5++;
+            //}
+            //if (pAppParam->numPlayers > 5 && numThreads6 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
+            //    numThreads6++;
+            //}
+            //if (pAppParam->numPlayers > 6 && numThreads7 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
+            //    numThreads7++;
+            //}
+            //if (pAppParam->numPlayers > 7 && numThreads8 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
+            //    numThreads8++;
+            //}
+            //if (pAppParam->numPlayers > 8 && numThreads9 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
+            //    numThreads9++;
+            //}
+            //if (pAppParam->numPlayers > 9 && numThreads10 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
+            //    numThreads10++;
+            //}
+            //if (pAppParam->numPlayers > 10 && numThreads11 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
+            //    numThreads11++;
+            //}
+            //if (pAppParam->numPlayers > 11 && numThreads12 < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
+            //    numThreads12++;
+            //}
             
             ResetEvent(gpuEvent[0]);
         }
@@ -756,7 +756,23 @@ void NvIFREncoder::EncoderThreadProc()
     /* free the stream */
     avformat_free_context(oc);
 
-	//CleanupNvIFR();
+    /* Write the trailer, if any. The trailer must be written before you
+    * close the CodecContexts open when you wrote the header; otherwise
+    * av_write_trailer() may try to use memory that was freed on
+    * av_codec_close(). */
+    av_write_trailer(oc2);
+
+    /* Close each codec. */
+    close_stream(oc2, &video_st2);
+
+    if (!(fmt2->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+        avio_closep(&oc2->pb);
+
+    /* free the stream */
+    avformat_free_context(oc2);
+
+	CleanupNvIFR();
 }
 
 Streamer * NvIFREncoder::pSharedStreamer = NULL;
