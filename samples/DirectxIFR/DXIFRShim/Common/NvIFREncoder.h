@@ -95,7 +95,6 @@ protected:
 private:
 	void EncoderThreadProc();
 	void FFMPEGThreadProc(int playerIndex);
-    void FFMPEGThreadProc2(int playerIndex);
 
 	static void EncoderThreadStartProc(void *args) 
 	{
@@ -109,7 +108,7 @@ private:
 
 	static void FFMPEGThreadStartProc1(void *args)
 	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc2(1);
+		((NvIFREncoder *)args)->FFMPEGThreadProc(1);
 	}
 
 	static void FFMPEGThreadStartProc2(void *args)
@@ -246,19 +245,6 @@ private:
 	const int nFrameRate;
 	const char *szClassName;
 	const void *pPresenter;
-
-	int numThreads1;
-	int numThreads2;
-	int numThreads3;
-	int numThreads4;
-	int numThreads5;
-	int numThreads6;
-	int numThreads7;
-	int numThreads8;
-	int numThreads9;
-	int numThreads10;
-	int numThreads11;
-	int numThreads12;
 	
 	std::vector<FILE*> PipeList;
 	HANDLE FFMPEGThread;

@@ -62,39 +62,23 @@ extern simplelogger::Logger *logger;
 
 #define PIXEL_SIZE 1.5
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
+#define MAX_PLAYERS 12
 
-HANDLE gpuEvent[NUMFRAMESINFLIGHT] = { NULL };
-uint8_t *buffer[NUMFRAMESINFLIGHT] = { NULL };
+HANDLE gpuEvent = NULL;
+uint8_t *buffer = NULL;
 
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
-
 #define SCALE_FLAGS SWS_BICUBIC
 
-AVFormatContext *oc;
-AVDictionary *optionsOutput = NULL;
-int ret;
-AVDictionary *opt = NULL;
-AVOutputFormat *fmt;
+AVFormatContext *outCtxArray[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+int ret[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+AVDictionary *opt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+AVOutputFormat *fmt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-AVFormatContext *oc2;
-AVDictionary *optionsOutput2 = NULL;
-int ret2;
-AVDictionary *opt2 = NULL;
-AVOutputFormat *fmt2;
-
-bool serverOpened1 = false;
-bool serverOpened2 = false;
-bool serverOpened3 = false;
-bool serverOpened4 = false;
-bool serverOpened5 = false;
-bool serverOpened6 = false;
-bool serverOpened7 = false;
-bool serverOpened8 = false;
-bool serverOpened9 = false;
-bool serverOpened10 = false;
-bool serverOpened11 = false;
-bool serverOpened12 = false;
+int numThreads[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+bool serverOpened[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -114,8 +98,8 @@ typedef struct OutputStream {
 	struct SwrContext *swr_ctx;
 } OutputStream;
 
-OutputStream video_st = { 0 };
-OutputStream video_st2 = { 0 };
+OutputStream video_st[MAX_PLAYERS];
+//OutputStream video_st2 = { 0 };
 
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
@@ -435,7 +419,7 @@ void NvIFREncoder::StopEncoder()
 
 void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
-    if (serverOpened1 == false)
+    if (serverOpened[playerIndex] == false)
     {
         const char *filename = NULL;
         AVCodec *video_codec;
@@ -446,50 +430,53 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         avformat_network_init();
 
         /* allocate the output media context */
-        avformat_alloc_output_context2(&oc, NULL, NULL, "output.h264");
-        if (!oc) {
+        avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
+        if (!outCtxArray[playerIndex]) {
             printf("Could not deduce output format from file extension: using h264.\n");
             LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
-            avformat_alloc_output_context2(&oc, NULL, "h264", filename);
+            avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
         }
-        if (!oc) {
+        if (!outCtxArray[playerIndex]) {
             fprintf(stderr, "No output context.\n");
             LOG_WARN(logger, "No output context.");
             return;
         }
 
-        fmt = oc->oformat;
+        fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
 
         /* Add the audio and video streams using the default format codecs
         * and initialize the codecs. */
-        if (fmt->video_codec != AV_CODEC_ID_NONE) {
-            add_stream(&video_st, oc, &video_codec, fmt->video_codec);
+        if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
+            add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
         }
 
-        if ((ret = av_dict_set(&opt, "re", "", 0)) < 0) {
+        if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
             fprintf(stderr, "Failed to set -re mode.\n");
             return;
         }
 
         /* Now that all the parameters are set, we can open the audio and
         * video codecs and allocate the necessary encode buffers. */
-        open_video(oc, video_codec, &video_st, opt);
-        av_dump_format(oc, 0, filename, 1);
+        open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
+        av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
 
-        AVDictionary *optionsOutput = NULL;
+        AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-        if ((ret = av_dict_set(&optionsOutput, "listen", "1", 0)) < 0) {
+        if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
             fprintf(stderr, "Failed to set listen mode for server.\n");
             return;
         }
 
-        if ((ret = av_dict_set(&optionsOutput, "an", "", 0)) < 0) {
+        if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
             fprintf(stderr, "Failed to set -an mode.\n");
             return;
         }
 
+        std::stringstream *HTTPUrl = new std::stringstream();
+        *HTTPUrl << "http://172.26.186.80:" << 30000 + playerIndex;
+
         // Open server
-        if ((avio_open2(&oc->pb, "http://172.26.186.80:30000", AVIO_FLAG_WRITE, NULL, &optionsOutput)) < 0) {
+        if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
             fprintf(stderr, "Failed to open server 0.\n");
             LOG_ERROR(logger, "Failed to open server 0.");
             return;
@@ -497,98 +484,19 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         LOG_DEBUG(logger, "Server 0 opened.");
 
         /* Write the stream header, if any. */
-        ret = avformat_write_header(oc, &opt);
-        if (ret < 0) {
+        ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
+        if (ret[playerIndex] < 0) {
             fprintf(stderr, "Error occurred when opening output file.\n");
             LOG_ERROR(logger, "Error occurred when opening output file.\n");
             return;
         }
-        serverOpened1 = true;
+        serverOpened[playerIndex] = true;
     }
 
-    write_video_frame(oc, &video_st, buffer[0]);
-    numThreads1--;    
+    write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer);
+    numThreads[playerIndex]--;    
 
 	_endthread();
-}
-
-void NvIFREncoder::FFMPEGThreadProc2(int playerIndex)
-{
-    if (serverOpened2 == false)
-    {
-        const char *filename2 = NULL;
-        AVCodec *video_codec2;
-
-        /* Initialize libavcodec, and register all codecs and formats. */
-        av_register_all();
-        // Global initialization of network components
-        avformat_network_init();
-
-        /* allocate the output media context */
-        avformat_alloc_output_context2(&oc2, NULL, NULL, "output.h264");
-        if (!oc2) {
-            printf("Could not deduce output format from file extension: using h264.\n");
-            LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
-            avformat_alloc_output_context2(&oc2, NULL, "h264", filename2);
-        }
-        if (!oc2) {
-            fprintf(stderr, "No output context.\n");
-            LOG_WARN(logger, "No output context.");
-            return;
-        }
-
-        fmt2 = oc2->oformat;
-
-        /* Add the audio and video streams using the default format codecs
-        * and initialize the codecs. */
-        if (fmt2->video_codec != AV_CODEC_ID_NONE) {
-            add_stream(&video_st2, oc2, &video_codec2, fmt2->video_codec);
-        }
-
-        if ((ret2 = av_dict_set(&opt2, "re", "", 0)) < 0) {
-            fprintf(stderr, "Failed to set -re mode.\n");
-            return;
-        }
-
-        /* Now that all the parameters are set, we can open the audio and
-        * video codecs and allocate the necessary encode buffers. */
-        open_video(oc2, video_codec2, &video_st2, opt2);
-        av_dump_format(oc2, 0, filename2, 1);
-
-        AVDictionary *optionsOutput2 = NULL;
-
-        if ((ret2 = av_dict_set(&optionsOutput2, "listen", "1", 0)) < 0) {
-            fprintf(stderr, "Failed to set listen mode for server.\n");
-            return;
-        }
-
-        if ((ret2 = av_dict_set(&optionsOutput2, "an", "", 0)) < 0) {
-            fprintf(stderr, "Failed to set -an mode.\n");
-            return;
-        }
-
-        // Open server
-        if ((avio_open2(&oc2->pb, "http://172.26.186.80:30001", AVIO_FLAG_WRITE, NULL, &optionsOutput2)) < 0) {
-            fprintf(stderr, "Failed to open server 1.\n");
-            LOG_ERROR(logger, "Failed to open server 1.");
-            return;
-        }
-        LOG_DEBUG(logger, "Server 1 opened.");
-
-        /* Write the stream header, if any. */
-        ret2 = avformat_write_header(oc2, &opt2);
-        if (ret2 < 0) {
-            fprintf(stderr, "Error occurred when opening output file.\n");
-            LOG_ERROR(logger, "Error occurred when opening output file.\n");
-            return;
-        }
-        serverOpened2 = true;
-    }
-
-    write_video_frame(oc2, &video_st2, buffer[0]);
-    numThreads2--;
-
-    _endthread();
 }
 
 void NvIFREncoder::EncoderThreadProc() 
@@ -614,8 +522,8 @@ void NvIFREncoder::EncoderThreadProc()
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
 	params.dwTargetWidth = pAppParam->width;
 	params.dwTargetHeight = pAppParam->height;
-	params.ppPageLockedSysmemBuffers = buffer;
-	params.ppTransferCompletionEvents = gpuEvent; 
+	params.ppPageLockedSysmemBuffers = &buffer;
+	params.ppTransferCompletionEvents = &gpuEvent; 
     
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
     
@@ -634,19 +542,6 @@ void NvIFREncoder::EncoderThreadProc()
     bInitEncoderSuccessful = TRUE;
     SetEvent(hevtInitEncoderDone);
 
-    numThreads1 = 0;
-    numThreads2 = 0;
-    //numThreads3 = 0;
-    //numThreads4 = 0;
-    //numThreads5 = 0;
-    //numThreads6 = 0;
-    //numThreads7 = 0;
-    //numThreads8 = 0;
-    //numThreads9 = 0;
-    //numThreads10 = 0;
-    //numThreads11 = 0;
-    //numThreads12 = 0;
-
     while (!bStopEncoder)
     {
         if (!UpdateBackBuffer())
@@ -658,7 +553,7 @@ void NvIFREncoder::EncoderThreadProc()
    
         if (res == NVIFR_SUCCESS)
         {
-            DWORD dwRet = WaitForSingleObject(gpuEvent[0], INFINITE);
+            DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE);
             if (dwRet != WAIT_OBJECT_0)// If not signalled
             {
                 if (dwRet != WAIT_OBJECT_0 + 1)
@@ -668,68 +563,68 @@ void NvIFREncoder::EncoderThreadProc()
                 return;
             }
    
-            if (pAppParam->numPlayers > 0 && numThreads1 < 1)
+            if (pAppParam->numPlayers > 0 && numThreads[0] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
-                numThreads1++;
+                numThreads[0]++;
             }
-            if (pAppParam->numPlayers > 1 && numThreads2 < 1)
+            if (pAppParam->numPlayers > 1 && numThreads[1] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
-                numThreads2++;
+                numThreads[1]++;
             }
-            //if (pAppParam->numPlayers > 2 && numThreads3 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
-            //    numThreads3++;
-            //}
-            //if (pAppParam->numPlayers > 3 && numThreads4 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
-            //    numThreads4++;
-            //}
-            //if (pAppParam->numPlayers > 4 && numThreads5 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
-            //    numThreads5++;
-            //}
-            //if (pAppParam->numPlayers > 5 && numThreads6 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
-            //    numThreads6++;
-            //}
-            //if (pAppParam->numPlayers > 6 && numThreads7 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
-            //    numThreads7++;
-            //}
-            //if (pAppParam->numPlayers > 7 && numThreads8 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
-            //    numThreads8++;
-            //}
-            //if (pAppParam->numPlayers > 8 && numThreads9 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
-            //    numThreads9++;
-            //}
-            //if (pAppParam->numPlayers > 9 && numThreads10 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
-            //    numThreads10++;
-            //}
-            //if (pAppParam->numPlayers > 10 && numThreads11 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
-            //    numThreads11++;
-            //}
-            //if (pAppParam->numPlayers > 11 && numThreads12 < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
-            //    numThreads12++;
-            //}
+            if (pAppParam->numPlayers > 2 && numThreads[2] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
+                numThreads[2]++;
+            }
+            if (pAppParam->numPlayers > 3 && numThreads[3] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
+                numThreads[3]++;
+            }
+            if (pAppParam->numPlayers > 4 && numThreads[4] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
+                numThreads[4]++;
+            }
+            if (pAppParam->numPlayers > 5 && numThreads[5] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
+                numThreads[5]++;
+            }
+            if (pAppParam->numPlayers > 6 && numThreads[6] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
+                numThreads[6]++;
+            }
+            if (pAppParam->numPlayers > 7 && numThreads[7] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
+                numThreads[7]++;
+            }
+            if (pAppParam->numPlayers > 8 && numThreads[8] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
+                numThreads[8]++;
+            }
+            if (pAppParam->numPlayers > 9 && numThreads[9] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
+                numThreads[9]++;
+            }
+            if (pAppParam->numPlayers > 10 && numThreads[10] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
+                numThreads[10]++;
+            }
+            if (pAppParam->numPlayers > 11 && numThreads[11] < 1)
+            {
+                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
+                numThreads[11]++;
+            }
             
-            ResetEvent(gpuEvent[0]);
+            ResetEvent(gpuEvent);
         }
         else
         {
@@ -740,37 +635,24 @@ void NvIFREncoder::EncoderThreadProc()
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
-    /* Write the trailer, if any. The trailer must be written before you
-    * close the CodecContexts open when you wrote the header; otherwise
-    * av_write_trailer() may try to use memory that was freed on
-    * av_codec_close(). */
-    av_write_trailer(oc);
+    for (int i = 0; i < pAppParam->numPlayers; i++)
+    {
+        /* Write the trailer, if any. The trailer must be written before you
+         * close the CodecContexts open when you wrote the header; otherwise
+         * av_write_trailer() may try to use memory that was freed on
+         * av_codec_close(). */
+        av_write_trailer(outCtxArray[i]);
 
-    /* Close each codec. */
-    close_stream(oc, &video_st);
+        /* Close each codec. */
+        close_stream(outCtxArray[i], &video_st[i]);
 
-    if (!(fmt->flags & AVFMT_NOFILE))
-        /* Close the output file. */
-        avio_closep(&oc->pb);
+        if (!(fmt[i]->flags & AVFMT_NOFILE))
+            /* Close the output file. */
+            avio_closep(&outCtxArray[i]->pb);
 
-    /* free the stream */
-    avformat_free_context(oc);
-
-    /* Write the trailer, if any. The trailer must be written before you
-    * close the CodecContexts open when you wrote the header; otherwise
-    * av_write_trailer() may try to use memory that was freed on
-    * av_codec_close(). */
-    av_write_trailer(oc2);
-
-    /* Close each codec. */
-    close_stream(oc2, &video_st2);
-
-    if (!(fmt2->flags & AVFMT_NOFILE))
-        /* Close the output file. */
-        avio_closep(&oc2->pb);
-
-    /* free the stream */
-    avformat_free_context(oc2);
+        /* free the stream */
+        avformat_free_context(outCtxArray[i]);
+    }
 
 	CleanupNvIFR();
 }
