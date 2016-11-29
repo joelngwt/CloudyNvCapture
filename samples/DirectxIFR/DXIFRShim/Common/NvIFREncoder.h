@@ -95,6 +95,7 @@ protected:
 private:
 	void EncoderThreadProc();
 	void FFMPEGThreadProc(int playerIndex);
+    void FFMPEGThreadProc2(int playerIndex);
 
 	static void EncoderThreadStartProc(void *args) 
 	{
@@ -108,7 +109,7 @@ private:
 
 	static void FFMPEGThreadStartProc1(void *args)
 	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(1);
+		((NvIFREncoder *)args)->FFMPEGThreadProc2(1);
 	}
 
 	static void FFMPEGThreadStartProc2(void *args)
