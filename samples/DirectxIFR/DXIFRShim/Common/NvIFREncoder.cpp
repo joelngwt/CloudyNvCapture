@@ -71,6 +71,12 @@ uint8_t *buffer = NULL;
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 
+int splitWidth, splitHeight;
+int bufferWidth, bufferHeight;
+int rows, cols;
+int topRightX[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+int topRightY[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
 AVFormatContext *outCtxArray[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 int ret[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
@@ -121,8 +127,7 @@ enum AVCodecID codec_id)
 	/* find the encoder */
 	*codec = avcodec_find_encoder(codec_id);
 	if (!(*codec)) {
-		fprintf(stderr, "Could not find encoder for '%s'\n",
-			avcodec_get_name(codec_id));
+		fprintf(stderr, "Could not find encoder for '%s'\n", avcodec_get_name(codec_id));
 		exit(1);
 	}
 
@@ -139,23 +144,21 @@ enum AVCodecID codec_id)
 	}
 	ost->enc = c;
 
-	AVRational time_base;
-	AVRational framerate;
+    AVRational time_base = { 1, STREAM_FRAME_RATE };
+    AVRational framerate = { 25, 1 };
 
 	c->codec_id = codec_id;
 	c->bit_rate = 400000;
 	/* Resolution must be a multiple of two. */
-	c->width = 1920;
-	c->height = 1080;
+	c->width = splitWidth;
+	c->height = splitHeight;
 	/* timebase: This is the fundamental unit of time (in seconds) in terms
 	* of which frame timestamps are represented. For fixed-fps content,
 	* timebase should be 1/framerate and timestamp increments should be
 	* identical to 1. */
-	time_base = { 1, STREAM_FRAME_RATE };
 	ost->st->time_base = time_base;
 	c->time_base = ost->st->time_base;
 	c->delay = 0;
-	framerate = { 25, 1 };
 	c->framerate = framerate;
 	c->has_b_frames = 0;
 	c->max_b_frames = 0;
@@ -180,8 +183,9 @@ enum AVCodecID codec_id)
 	av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
 
 	/* Some formats want stream headers to be separate. */
-	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-		c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
+        c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    }
 }
 
 /**************************************************************/
@@ -254,41 +258,24 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 /* Prepare a dummy image. */
-static void fill_yuv_image(AVFrame *pict, int width, int height, uint8_t *buffer)
-//static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height)
+static void fill_yuv_image(AVFrame *pict, uint8_t *buffer, int topRightX, int topRightY)
 {
-	pict->width = width;
-	pict->height = height;
-	pict->format = AV_PIX_FMT_YUV420P;
+    pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
+	pict->height = bufferHeight;
 
-	avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    // width and height parameters are the width and height of actual output.
+    // Function requires top right corner coordinates.
 
-    //int x, y, i;
-    //
-    //i = frame_index;
-    //
-    ///* Y */
-    //for (y = 0; y < height; y++)
-    //    for (x = 0; x < width; x++)
-    //        pict->data[0][y * pict->linesize[0] + x] = x + y + i * 3;
-    //
-    ///* Cb and Cr */
-    //for (y = 0; y < height / 2; y++) {
-    //    for (x = 0; x < width / 2; x++) {
-    //        pict->data[1][y * pict->linesize[1] + x] = 128 + y + i * 2;
-    //        pict->data[2][y * pict->linesize[2] + x] = 64 + x + i * 5;
-    //    }
-    //}
+	pict->format = AV_PIX_FMT_YUV420P; 
+
+    AVFrame *temp = av_frame_alloc();
+    avpicture_fill((AVPicture*)temp, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    av_picture_crop((AVPicture*)pict, (AVPicture*)temp, AV_PIX_FMT_YUV420P, topRightX, topRightY);
 }
 
-static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
+static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer, int topRightX, int topRightY)
 {
 	AVCodecContext *c = ost->enc;
-	//AVRational tb_b = { 1, 1 };
-
-	/* check if we want to generate more frames */
-	//if (av_compare_ts(ost->next_pts, c->time_base, STREAM_DURATION, tb_b) >= 0)
-	//	return NULL;
 
 	/* when we pass a frame to the encoder, it may keep a reference to it
 	* internally; make sure we do not overwrite it here */
@@ -305,20 +292,17 @@ static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 				c->pix_fmt,
 				SCALE_FLAGS, NULL, NULL, NULL);
 			if (!ost->sws_ctx) {
-				fprintf(stderr,
-					"Could not initialize the conversion context\n");
+				fprintf(stderr, "Could not initialize the conversion context\n");
 				exit(1);
 			}
 		}
-		fill_yuv_image(ost->tmp_frame, c->width, c->height, buffer);
-        //fill_yuv_image(ost->tmp_frame, ost->next_pts, c->width, c->height);
+        fill_yuv_image(ost->tmp_frame, buffer, topRightX, topRightY);
 		sws_scale(ost->sws_ctx,
 			(const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
 			0, c->height, ost->frame->data, ost->frame->linesize);
 	}
 	else {
-        fill_yuv_image(ost->frame, c->width, c->height, buffer);
-        //fill_yuv_image(ost->frame, ost->next_pts, c->width, c->height);
+        fill_yuv_image(ost->frame, buffer, topRightX, topRightY);
 	}
 
 	ost->frame->pts = ost->next_pts++;
@@ -330,7 +314,7 @@ static AVFrame *get_video_frame(OutputStream *ost, uint8_t *buffer)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int topRightX, int topRightY)
 {
 	int ret;
 	AVCodecContext *c;
@@ -340,7 +324,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 
 	c = ost->enc;
 
-	frame = get_video_frame(ost, buffer);
+	frame = get_video_frame(ost, buffer, topRightX, topRightY);
 
 	av_init_packet(&pkt);
 
@@ -424,6 +408,18 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         const char *filename = NULL;
         AVCodec *video_codec;
 
+        topRightX[playerIndex] = playerIndex % cols * splitWidth;
+
+        if (playerIndex >= 0 && playerIndex <= 3) {
+            topRightY[playerIndex] = 0;
+        }
+        else if (playerIndex >= 4 && playerIndex <= 7) {
+            topRightY[playerIndex] = splitHeight;
+        }
+        else if (playerIndex >= 8 && playerIndex <= 11) {
+            topRightY[playerIndex] = splitHeight * 2;
+        }
+        
         /* Initialize libavcodec, and register all codecs and formats. */
         av_register_all();
         // Global initialization of network components
@@ -477,11 +473,11 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
         // Open server
         if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-            fprintf(stderr, "Failed to open server 0.\n");
-            LOG_ERROR(logger, "Failed to open server 0.");
+            fprintf(stderr, "Failed to open server %d.\n", playerIndex);
+            LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
             return;
         }
-        LOG_DEBUG(logger, "Server 0 opened.");
+        LOG_DEBUG(logger, "Server " << playerIndex << " opened.");
 
         /* Write the stream header, if any. */
         ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
@@ -490,10 +486,11 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
             LOG_ERROR(logger, "Error occurred when opening output file.\n");
             return;
         }
+
         serverOpened[playerIndex] = true;
     }
 
-    write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer);
+    write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer, topRightY[playerIndex], topRightX[playerIndex]);
     numThreads[playerIndex]--;    
 
 	_endthread();
@@ -501,7 +498,13 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
 void NvIFREncoder::EncoderThreadProc() 
 {
-	
+    splitWidth = pAppParam->splitWidth;
+    splitHeight = pAppParam->splitHeight;
+    bufferWidth = pAppParam->width;
+    bufferHeight = pAppParam->height;
+    rows = pAppParam->rows;
+    cols = pAppParam->cols;
+
 	/*Note: 
 	1. The D3D device for encoding must be create on a seperate thread other than the game rendering thread. 
 	Otherwise, some games (such as Mass Effect 2) will run abnormally. That's why SetupNvIFR()
