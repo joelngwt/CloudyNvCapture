@@ -10,9 +10,11 @@ class StreamerFile : public Streamer
 public:
 	StreamerFile(AppParam *pAppParam, int width, int height)
 	{
+		// Open pipe to ffmpeg here
+
 		int row = 0;
 		int col = 0;
-
+        
 		for (int i = 0; i < pAppParam->numPlayers; ++i)
 		{
 			std::stringstream *StringStream = new std::stringstream();
@@ -23,10 +25,10 @@ public:
 							 "-f mpegts http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
 			//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1920x1080 -re -i - -c copy -listen 1 " \
 			//				 "-f h264 http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
-
+        
 			//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1280x720 -re -i - output.h264 2> output" << i << ".txt";
 			PipeList.push_back(_popen(StringStream->str().c_str(), "wb"));
-
+        
 			++col;
 			if (col >= pAppParam->cols)
 			{

@@ -261,8 +261,6 @@ int main(int argc, char *argv[])
 	pAppParam->cyEncoding = aRes[iRes].y;
 	pAppParam->bHEVC = bHEVC;
 
-
-
 	char szAppDir[MAX_PATH];
 	strcpy_s(szAppDir, argv[iArg]);
 	if (!TrimPathToDirectory(szAppDir)) {
