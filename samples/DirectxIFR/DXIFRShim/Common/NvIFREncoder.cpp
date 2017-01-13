@@ -128,19 +128,19 @@ enum AVCodecID codec_id)
 	/* find the encoder */
 	*codec = avcodec_find_encoder(codec_id);
 	if (!(*codec)) {
-		fprintf(stderr, "Could not find encoder for '%s'\n", avcodec_get_name(codec_id));
+		LOG_WARN(logger, "Could not find encoder for" << avcodec_get_name(codec_id));
 		exit(1);
 	}
 
 	ost->st = avformat_new_stream(oc, NULL);
 	if (!ost->st) {
-		fprintf(stderr, "Could not allocate stream\n");
+		LOG_WARN(logger, "Could not allocate stream");
 		exit(1);
 	}
 	ost->st->id = oc->nb_streams - 1;
 	c = avcodec_alloc_context3(*codec);
 	if (!c) {
-		fprintf(stderr, "Could not alloc an encoding context\n");
+		LOG_WARN(logger, "Could not alloc an encoding context");
 		exit(1);
 	}
 	ost->enc = c;
@@ -208,7 +208,7 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	/* allocate the buffers for the frame data */
 	ret = av_frame_get_buffer(picture, 32);
 	if (ret < 0) {
-		fprintf(stderr, "Could not allocate frame data.\n");
+		LOG_WARN(logger, "Could not allocate frame data");
 		exit(1);
 	}
 
@@ -227,14 +227,14 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	ret = avcodec_open2(c, codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
-		fprintf(stderr, "Could not open video codec\n");
+		LOG_WARN(logger, "Could not open video codec");
 		exit(1);
 	}
 
 	/* allocate and init a re-usable frame */
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
 	if (!ost->frame) {
-		fprintf(stderr, "Could not allocate video frame\n");
+		LOG_WARN(logger, "Could not allocate video frame");
 		exit(1);
 	}
 
@@ -245,7 +245,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
 		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
 		if (!ost->tmp_frame) {
-			fprintf(stderr, "Could not allocate temporary picture\n");
+			LOG_WARN(logger, "Could not allocate temporary picture");
 			exit(1);
 		}
 	}
@@ -253,7 +253,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	/* copy the stream parameters to the muxer */
 	ret = avcodec_parameters_from_context(ost->st->codecpar, c);
 	if (ret < 0) {
-		fprintf(stderr, "Could not copy the stream parameters\n");
+		LOG_WARN(logger, "Could not copy the stream parameters");
 		exit(1);
 	}
 }
@@ -293,7 +293,7 @@ static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer, int topRight
 				c->pix_fmt,
 				SCALE_FLAGS, NULL, NULL, NULL);
 			if (!ost->sws_ctx) {
-				fprintf(stderr, "Could not initialize the conversion context\n");
+				LOG_WARN(logger, "Could not initialize the conversion context");
 				exit(1);
 			}
 		}
@@ -431,12 +431,10 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         /* allocate the output media context */
         avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
         if (!outCtxArray[playerIndex]) {
-            printf("Could not deduce output format from file extension: using h264.\n");
             LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
             avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
         }
         if (!outCtxArray[playerIndex]) {
-            fprintf(stderr, "No output context.\n");
             LOG_WARN(logger, "No output context.");
             return;
         }
@@ -450,7 +448,7 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         }
 
         if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
-            fprintf(stderr, "Failed to set -re mode.\n");
+			LOG_WARN(logger, "Failed to set -re mode.");
             return;
         }
 
@@ -462,12 +460,12 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
         if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
-            fprintf(stderr, "Failed to set listen mode for server.\n");
+			LOG_WARN(logger, "Failed to set listen mode for server.");
             return;
         }
 
         if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
-            fprintf(stderr, "Failed to set -an mode.\n");
+			LOG_WARN(logger, "Failed to set -an mode.");
             return;
         }
 
@@ -476,7 +474,6 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
         // Open server
         if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-            fprintf(stderr, "Failed to open server %d.\n", playerIndex);
             LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
             return;
         }
@@ -485,7 +482,6 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         /* Write the stream header, if any. */
         ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
         if (ret[playerIndex] < 0) {
-            fprintf(stderr, "Error occurred when opening output file.\n");
             LOG_ERROR(logger, "Error occurred when opening output file.\n");
             return;
         }
