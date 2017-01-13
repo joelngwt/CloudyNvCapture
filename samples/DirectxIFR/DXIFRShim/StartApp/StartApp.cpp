@@ -20,7 +20,8 @@ void ShowUsageAndExit(char *szExeName)
 		"Usage: %s -r <WxH> -gpu <gpu number> -audio <audio number> -hevc <application command line> -players <number of players> " \
 		"-rows <number of split screen rows> -cols <number of split screen columns> -width <width of a single split screen> " \
 		"-height <height of a single split screen>\n"
-		"-hevc is optional", szExeName);
+		"-hevc is optional\n"
+		"-width and -height seems broken. Avoid for now.\n", szExeName);
 	exit(0);
 }
 

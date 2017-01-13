@@ -74,6 +74,7 @@ uint8_t *buffer = NULL;
 int splitWidth, splitHeight;
 int bufferWidth, bufferHeight;
 int rows, cols;
+int numPlayers;
 int topRightX[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 int topRightY[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -331,7 +332,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 	/* encode the image */
 	ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
 	if (ret < 0) {
-		fprintf(stderr, "Error encoding video frame\n");
+		LOG_WARN(logger, "Error encoding video frame");
 		exit(1);
 	}
 
@@ -340,10 +341,12 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 	}
 	else {
 		ret = 0;
+		LOG_WARN(logger, "No packet");
 	}
 
 	if (ret < 0) {
-		fprintf(stderr, "Error while writing video frame\n");
+		// This happens when the thin client is closed. This will close the game.
+		LOG_WARN(logger, "Error while writing video frame");
 		exit(1);
 	}
 
@@ -498,12 +501,13 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
 void NvIFREncoder::EncoderThreadProc() 
 {
-    splitWidth = pAppParam->splitWidth;
-    splitHeight = pAppParam->splitHeight;
-    bufferWidth = pAppParam->width;
-    bufferHeight = pAppParam->height;
-    rows = pAppParam->rows;
-    cols = pAppParam->cols;
+	splitWidth = 1280;
+    splitHeight = 720;
+    bufferWidth = 1280;
+    bufferHeight = 720;
+    rows = 1;
+    cols = 1;
+	numPlayers = 1;
 
 	/*Note: 
 	1. The D3D device for encoding must be create on a seperate thread other than the game rendering thread. 
@@ -523,8 +527,8 @@ void NvIFREncoder::EncoderThreadProc()
 	params.eFormat = NVIFR_FORMAT_YUV_420;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
-	params.dwTargetWidth = pAppParam->width;
-	params.dwTargetHeight = pAppParam->height;
+	params.dwTargetWidth = bufferWidth;
+	params.dwTargetHeight = bufferHeight;
 	params.ppPageLockedSysmemBuffers = &buffer;
 	params.ppTransferCompletionEvents = &gpuEvent; 
     
@@ -566,62 +570,62 @@ void NvIFREncoder::EncoderThreadProc()
                 return;
             }
    
-            if (pAppParam->numPlayers > 0 && numThreads[0] < 1)
+            if (numPlayers > 0 && numThreads[0] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
                 numThreads[0]++;
             }
-            if (pAppParam->numPlayers > 1 && numThreads[1] < 1)
+            if (numPlayers > 1 && numThreads[1] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
                 numThreads[1]++;
             }
-            if (pAppParam->numPlayers > 2 && numThreads[2] < 1)
+            if (numPlayers > 2 && numThreads[2] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
                 numThreads[2]++;
             }
-            if (pAppParam->numPlayers > 3 && numThreads[3] < 1)
+            if (numPlayers > 3 && numThreads[3] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
                 numThreads[3]++;
             }
-            if (pAppParam->numPlayers > 4 && numThreads[4] < 1)
+            if (numPlayers > 4 && numThreads[4] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
                 numThreads[4]++;
             }
-            if (pAppParam->numPlayers > 5 && numThreads[5] < 1)
+            if (numPlayers > 5 && numThreads[5] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
                 numThreads[5]++;
             }
-            if (pAppParam->numPlayers > 6 && numThreads[6] < 1)
+            if (numPlayers > 6 && numThreads[6] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
                 numThreads[6]++;
             }
-            if (pAppParam->numPlayers > 7 && numThreads[7] < 1)
+            if (numPlayers > 7 && numThreads[7] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
                 numThreads[7]++;
             }
-            if (pAppParam->numPlayers > 8 && numThreads[8] < 1)
+            if (numPlayers > 8 && numThreads[8] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
                 numThreads[8]++;
             }
-            if (pAppParam->numPlayers > 9 && numThreads[9] < 1)
+            if (numPlayers > 9 && numThreads[9] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
                 numThreads[9]++;
             }
-            if (pAppParam->numPlayers > 10 && numThreads[10] < 1)
+            if (numPlayers > 10 && numThreads[10] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
                 numThreads[10]++;
             }
-            if (pAppParam->numPlayers > 11 && numThreads[11] < 1)
+            if (numPlayers > 11 && numThreads[11] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
                 numThreads[11]++;
@@ -638,7 +642,7 @@ void NvIFREncoder::EncoderThreadProc()
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
-    for (int i = 0; i < pAppParam->numPlayers; i++)
+    for (int i = 0; i < numPlayers; i++)
     {
         /* Write the trailer, if any. The trailer must be written before you
          * close the CodecContexts open when you wrote the header; otherwise
