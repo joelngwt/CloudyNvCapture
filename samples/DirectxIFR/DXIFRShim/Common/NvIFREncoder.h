@@ -61,7 +61,7 @@ public:
 	}
 
 public:
-	virtual BOOL StartEncoder();
+	virtual BOOL StartEncoder(int index);
 	virtual void StopEncoder();
 	BOOL CheckSize(int nWidth, int nHeight) {
 		return this->nWidth == nWidth && this->nHeight == nHeight;
@@ -93,12 +93,16 @@ protected:
 	virtual BOOL UpdateBackBuffer() = 0;
 
 private:
-	void EncoderThreadProc();
+	void EncoderThreadProc(int index);
 	void FFMPEGThreadProc(int playerIndex);
 
-	static void EncoderThreadStartProc(void *args) 
+	static void EncoderThreadStartProc0(void *args) 
 	{
-		((NvIFREncoder *)args)->EncoderThreadProc();
+		((NvIFREncoder *)args)->EncoderThreadProc(0);
+	}
+	static void EncoderThreadStartProc1(void *args)
+	{
+		((NvIFREncoder *)args)->EncoderThreadProc(1);
 	}
 
 	static void FFMPEGThreadStartProc0(void *args)

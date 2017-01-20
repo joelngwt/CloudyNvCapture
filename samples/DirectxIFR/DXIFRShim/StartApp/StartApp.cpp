@@ -218,10 +218,10 @@ int main(int argc, char *argv[])
 	int iArg;
 	int iRes = 1;
 	int iGpu = 0;
-	int iAudio = -1;
+	int iAudio = 0;
 	int iNumPlayers = 1;
-	int iCols = 3;
-	int iRows = 2;
+	int iCols = 1;
+	int iRows = 1;
 	int iSplitWidth = 0;
 	int iSplitHeight = 0;
 	BOOL bHEVC = FALSE;

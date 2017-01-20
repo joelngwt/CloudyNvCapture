@@ -346,7 +346,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 
 	if (ret < 0) {
 		// This happens when the thin client is closed. This will close the game.
-		LOG_WARN(logger, "Error while writing video frame");
+		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
 		exit(1);
 	}
 
@@ -363,7 +363,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 }
 
 
-BOOL NvIFREncoder::StartEncoder() 
+BOOL NvIFREncoder::StartEncoder(int index) 
 {
 	hevtStopEncoder = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (!hevtStopEncoder) {
@@ -379,7 +379,12 @@ BOOL NvIFREncoder::StartEncoder()
 	}
 	bInitEncoderSuccessful = FALSE;
 
-	hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc, 0, this);
+	if (index == 0) {
+		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc0, 0, this);
+	}
+	if (index == 1) {
+		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc1, 0, this);
+	}
 	if (!hthEncoder) {
 		return FALSE;
 	}
@@ -470,7 +475,7 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
         }
 
         std::stringstream *HTTPUrl = new std::stringstream();
-        *HTTPUrl << "http://172.26.186.80:" << 30000 + playerIndex;
+        *HTTPUrl << "http://137.132.82.160:" << 30000 + playerIndex;
 
         // Open server
         if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
@@ -495,12 +500,12 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 	_endthread();
 }
 
-void NvIFREncoder::EncoderThreadProc() 
+void NvIFREncoder::EncoderThreadProc(int index) 
 {
 	splitWidth = 1280;
     splitHeight = 720;
-    bufferWidth = 1280;
-    bufferHeight = 720;
+	bufferWidth = splitWidth;
+	bufferHeight = splitHeight;
     rows = 1;
     cols = 1;
 	numPlayers = 1;
@@ -566,66 +571,66 @@ void NvIFREncoder::EncoderThreadProc()
                 return;
             }
    
-            if (numPlayers > 0 && numThreads[0] < 1)
+            if (index == 0 && numThreads[0] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
                 numThreads[0]++;
             }
-            if (numPlayers > 1 && numThreads[1] < 1)
+            if (index == 1 && numThreads[1] < 1)
             {
                 FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
                 numThreads[1]++;
             }
-            if (numPlayers > 2 && numThreads[2] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
-                numThreads[2]++;
-            }
-            if (numPlayers > 3 && numThreads[3] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
-                numThreads[3]++;
-            }
-            if (numPlayers > 4 && numThreads[4] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
-                numThreads[4]++;
-            }
-            if (numPlayers > 5 && numThreads[5] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
-                numThreads[5]++;
-            }
-            if (numPlayers > 6 && numThreads[6] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
-                numThreads[6]++;
-            }
-            if (numPlayers > 7 && numThreads[7] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
-                numThreads[7]++;
-            }
-            if (numPlayers > 8 && numThreads[8] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
-                numThreads[8]++;
-            }
-            if (numPlayers > 9 && numThreads[9] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
-                numThreads[9]++;
-            }
-            if (numPlayers > 10 && numThreads[10] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
-                numThreads[10]++;
-            }
-            if (numPlayers > 11 && numThreads[11] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
-                numThreads[11]++;
-            }
+            //if (numPlayers > 2 && numThreads[2] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
+            //    numThreads[2]++;
+            //}
+            //if (numPlayers > 3 && numThreads[3] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
+            //    numThreads[3]++;
+            //}
+            //if (numPlayers > 4 && numThreads[4] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
+            //    numThreads[4]++;
+            //}
+            //if (numPlayers > 5 && numThreads[5] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
+            //    numThreads[5]++;
+            //}
+            //if (numPlayers > 6 && numThreads[6] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
+            //    numThreads[6]++;
+            //}
+            //if (numPlayers > 7 && numThreads[7] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
+            //    numThreads[7]++;
+            //}
+            //if (numPlayers > 8 && numThreads[8] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
+            //    numThreads[8]++;
+            //}
+            //if (numPlayers > 9 && numThreads[9] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
+            //    numThreads[9]++;
+            //}
+            //if (numPlayers > 10 && numThreads[10] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
+            //    numThreads[10]++;
+            //}
+            //if (numPlayers > 11 && numThreads[11] < 1)
+            //{
+            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
+            //    numThreads[11]++;
+            //}
             
             ResetEvent(gpuEvent);
         }
