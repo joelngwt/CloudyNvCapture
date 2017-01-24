@@ -94,7 +94,7 @@ protected:
 
 private:
 	void EncoderThreadProc(int index);
-	void FFMPEGThreadProc(int playerIndex);
+    void FFMPEGProc(int playerIndex);
 
 	static void EncoderThreadStartProc0(void *args) 
 	{
@@ -104,66 +104,51 @@ private:
 	{
 		((NvIFREncoder *)args)->EncoderThreadProc(1);
 	}
+    static void EncoderThreadStartProc2(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(2);
+    }
+    static void EncoderThreadStartProc3(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(3);
+    }
+    static void EncoderThreadStartProc4(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(4);
+    }
+    static void EncoderThreadStartProc5(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(5);
+    }
+    static void EncoderThreadStartProc6(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(6);
+    }
+    static void EncoderThreadStartProc7(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(7);
+    }
+    static void EncoderThreadStartProc8(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(8);
+    }
+    static void EncoderThreadStartProc9(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(9);
+    }
+    static void EncoderThreadStartProc10(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(10);
+    }
+    static void EncoderThreadStartProc11(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(11);
+    }
+    static void EncoderThreadStartProc12(void *args)
+    {
+        ((NvIFREncoder *)args)->EncoderThreadProc(12);
+    }
 
-	static void FFMPEGThreadStartProc0(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(0);
-	}
-
-	static void FFMPEGThreadStartProc1(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(1);
-	}
-
-	static void FFMPEGThreadStartProc2(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(2);
-	}
-
-	static void FFMPEGThreadStartProc3(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(3);
-	}
-
-	static void FFMPEGThreadStartProc4(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(4);
-	}
-
-	static void FFMPEGThreadStartProc5(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(5);
-	}
-
-	static void FFMPEGThreadStartProc6(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(6);
-	}
-
-	static void FFMPEGThreadStartProc7(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(7);
-	}
-
-	static void FFMPEGThreadStartProc8(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(8);
-	}
-
-	static void FFMPEGThreadStartProc9(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(9);
-	}
-
-	static void FFMPEGThreadStartProc10(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(10);
-	}
-
-	static void FFMPEGThreadStartProc11(void *args)
-	{
-		((NvIFREncoder *)args)->FFMPEGThreadProc(11);
-	}
 
 protected:
 	int nWidth, nHeight;

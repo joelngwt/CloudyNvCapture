@@ -71,12 +71,8 @@ uint8_t *bufferArray[MAX_PLAYERS];
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 
-int splitWidth, splitHeight;
 int bufferWidth, bufferHeight;
-int rows, cols;
 int numPlayers;
-int topRightX[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-int topRightY[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 AVFormatContext *outCtxArray[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
@@ -84,7 +80,6 @@ int ret[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, N
 AVDictionary *opt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 AVOutputFormat *fmt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-int numThreads[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 bool serverOpened[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 // a wrapper around a single output AVStream
@@ -151,8 +146,8 @@ enum AVCodecID codec_id)
 	c->codec_id = codec_id;
 	c->bit_rate = 400000;
 	/* Resolution must be a multiple of two. */
-	c->width = splitWidth;
-	c->height = splitHeight;
+    c->width = bufferWidth;
+	c->height = bufferHeight;
 	/* timebase: This is the fundamental unit of time (in seconds) in terms
 	* of which frame timestamps are represented. For fixed-fps content,
 	* timebase should be 1/framerate and timestamp increments should be
@@ -259,7 +254,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 /* Prepare a dummy image. */
-static void fill_yuv_image(AVFrame *pict, uint8_t *buffer, int topRightX, int topRightY)
+static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
 {
     pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
 	pict->height = bufferHeight;
@@ -271,10 +266,9 @@ static void fill_yuv_image(AVFrame *pict, uint8_t *buffer, int topRightX, int to
 
     AVFrame *temp = av_frame_alloc();
     avpicture_fill((AVPicture*)temp, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
-    av_picture_crop((AVPicture*)pict, (AVPicture*)temp, AV_PIX_FMT_YUV420P, topRightX, topRightY);
 }
 
-static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer, int topRightX, int topRightY)
+static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
 {
 	AVCodecContext *c = ost->enc;
 
@@ -297,13 +291,13 @@ static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer, int topRight
 				exit(1);
 			}
 		}
-        fill_yuv_image(ost->tmp_frame, buffer, topRightX, topRightY);
+        fill_yuv_image(ost->tmp_frame, buffer);
 		sws_scale(ost->sws_ctx,
 			(const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
 			0, c->height, ost->frame->data, ost->frame->linesize);
 	}
 	else {
-        fill_yuv_image(ost->frame, buffer, topRightX, topRightY);
+        fill_yuv_image(ost->frame, buffer);
 	}
 
 	ost->frame->pts = ost->next_pts++;
@@ -315,7 +309,7 @@ static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer, int topRight
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int topRightX, int topRightY)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
 {
 	int ret;
 	AVCodecContext *c;
@@ -325,7 +319,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 
 	c = ost->enc;
 
-	frame = get_video_frame(ost, buffer, topRightX, topRightY);
+	frame = get_video_frame(ost, buffer);
 
 	av_init_packet(&pkt);
 
@@ -382,9 +376,42 @@ BOOL NvIFREncoder::StartEncoder(int index)
 	if (index == 0) {
 		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc0, 0, this);
 	}
-	if (index == 1) {
+	else if (index == 1) {
 		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc1, 0, this);
 	}
+    else if (index == 2) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc2, 0, this);
+    }
+    else if (index == 3) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc3, 0, this);
+    }
+    else if (index == 4) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc4, 0, this);
+    }
+    else if (index == 5) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc5, 0, this);
+    }
+    else if (index == 6) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc6, 0, this);
+    }
+    else if (index == 7) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc7, 0, this);
+    }
+    else if (index == 8) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc8, 0, this);
+    }
+    else if (index == 9) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc9, 0, this);
+    }
+    else if (index == 10) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc10, 0, this);
+    }
+    else if (index == 11) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc11, 0, this);
+    }
+    else if (index == 12) {
+        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc12, 0, this);
+    }
 	if (!hthEncoder) {
 		return FALSE;
 	}
@@ -409,24 +436,12 @@ void NvIFREncoder::StopEncoder()
 	hevtStopEncoder = NULL;
 }
 
-void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
+void NvIFREncoder::FFMPEGProc(int playerIndex)
 {
 	if (serverOpened[playerIndex] == false)
 	{
 		const char *filename = NULL;
 		AVCodec *video_codec;
-
-		topRightX[playerIndex] = playerIndex % cols * splitWidth;
-
-		if (playerIndex >= 0 && playerIndex <= 3) {
-			topRightY[playerIndex] = 0;
-		}
-		else if (playerIndex >= 4 && playerIndex <= 7) {
-			topRightY[playerIndex] = splitHeight;
-		}
-		else if (playerIndex >= 8 && playerIndex <= 11) {
-			topRightY[playerIndex] = splitHeight * 2;
-		}
 
 		/* Initialize libavcodec, and register all codecs and formats. */
 		av_register_all();
@@ -493,25 +508,13 @@ void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 
 		serverOpened[playerIndex] = true;
 	}
-	//if (playerIndex == 0) {
-		write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], bufferArray[playerIndex], topRightY[playerIndex], topRightX[playerIndex]);
-	//}
-	//if (playerIndex == 1) {
-	//	write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer1, topRightY[playerIndex], topRightX[playerIndex]);
-	//}
-	//numThreads[playerIndex]--;    
-
-	//_endthread();
+	write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], bufferArray[playerIndex]);
 }
 
 void NvIFREncoder::EncoderThreadProc(int index) 
 {
-	splitWidth = 1280;
-    splitHeight = 720;
-	bufferWidth = splitWidth;
-	bufferHeight = splitHeight;
-    rows = 1;
-    cols = 1;
+    bufferWidth = 1280;
+    bufferHeight = 1280;
 	numPlayers = 1;
 
 	/*Note: 
@@ -575,14 +578,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             //    return;
             //}
    
-           // if (index == 0)// && numThreads[0] < 1)
-           // {
- 			//	FFMPEGThreadProc(0);
-           // }
-           // if (index == 1)// && numThreads[1] < 1)
-           // {
-				FFMPEGThreadProc(index);
-           // }
+            FFMPEGProc(index);
             
             ResetEvent(gpuEvent);
         }
