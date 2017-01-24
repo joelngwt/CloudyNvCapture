@@ -346,8 +346,8 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *bu
 
 	if (ret < 0) {
 		// This happens when the thin client is closed. This will close the game.
-		LOG_WARN(logger, "Error while writing video frame");
-		exit(1);
+		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
+		_endthread();
 	}
 
 	return (frame || got_packet) ? 0 : 1;
