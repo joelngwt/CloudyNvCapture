@@ -23,6 +23,7 @@ bufferHeight = 720;
 3. Download the FFmpeg .dll files from [Zeranoe](https://ffmpeg.zeranoe.com/builds/). Use the 64-bit shared version. If the latest build does not work due to deprecated functions, use the 20161101 version [here](https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-20161101-60178e7-win64-shared.zip).
 4. Place all the .dll files from the /bin folder into system32. Alternatively, put the .dll files together with the game executable.
 5. Launch the game .exe file.
+
 > WARNING: It is recommended that you put the .dll files into system32. If you do not have the two .dll files in system32 and you log out  of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
 
 # NvFBCToSys
