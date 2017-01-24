@@ -72,7 +72,6 @@ uint8_t *bufferArray[MAX_PLAYERS];
 #define SCALE_FLAGS SWS_BICUBIC
 
 int bufferWidth, bufferHeight;
-int numPlayers;
 
 AVFormatContext *outCtxArray[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
@@ -264,8 +263,7 @@ static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
 
 	pict->format = AV_PIX_FMT_YUV420P; 
 
-    AVFrame *temp = av_frame_alloc();
-    avpicture_fill((AVPicture*)temp, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
+    avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
 }
 
 static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
@@ -514,8 +512,7 @@ void NvIFREncoder::FFMPEGProc(int playerIndex)
 void NvIFREncoder::EncoderThreadProc(int index) 
 {
     bufferWidth = 1280;
-    bufferHeight = 1280;
-	numPlayers = 1;
+    bufferHeight = 720;
 
 	/*Note: 
 	1. The D3D device for encoding must be create on a seperate thread other than the game rendering thread. 
@@ -591,25 +588,22 @@ void NvIFREncoder::EncoderThreadProc(int index)
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
-    for (int i = 0; i < numPlayers; i++)
-    {
-        /* Write the trailer, if any. The trailer must be written before you
-         * close the CodecContexts open when you wrote the header; otherwise
-         * av_write_trailer() may try to use memory that was freed on
-         * av_codec_close(). */
-        av_write_trailer(outCtxArray[i]);
+    /* Write the trailer, if any. The trailer must be written before you
+        * close the CodecContexts open when you wrote the header; otherwise
+        * av_write_trailer() may try to use memory that was freed on
+        * av_codec_close(). */
+    av_write_trailer(outCtxArray[index]);
 
-        /* Close each codec. */
-        close_stream(outCtxArray[i], &video_st[i]);
+    /* Close each codec. */
+	close_stream(outCtxArray[index], &video_st[index]);
 
-        if (!(fmt[i]->flags & AVFMT_NOFILE))
-            /* Close the output file. */
-            avio_closep(&outCtxArray[i]->pb);
+	if (!(fmt[index]->flags & AVFMT_NOFILE))
+        /* Close the output file. */
+		avio_closep(&outCtxArray[index]->pb);
 
-        /* free the stream */
-        avformat_free_context(outCtxArray[i]);
-    }
-
+    /* free the stream */
+	avformat_free_context(outCtxArray[index]);
+ 
 	CleanupNvIFR();
 }
 
