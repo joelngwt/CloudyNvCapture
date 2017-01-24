@@ -52,7 +52,7 @@ static HRESULT STDMETHODCALLTYPE IDirect3DSwapChain9_Present_Proxy(IDirect3DSwap
 	if (!pEncoderD3D9 && !(pAppParam && pAppParam->bDwm)
 		&& !(pAppParam && pAppParam->bForceHwnd && (HWND)pAppParam->hwnd != hwnd)) {
 		pEncoderD3D9 = new NvIFREncoderD3D9(This, desc.Width, desc.Height, desc.Format, pAppParam);
-		if (!pEncoderD3D9->StartEncoder()) {
+		if (!pEncoderD3D9->StartEncoder(0)) {
 			LOG_WARN(logger, "failed to start sc_d3d9ex encoder");
 			delete pEncoderD3D9;
 			pEncoderD3D9 = NULL;
