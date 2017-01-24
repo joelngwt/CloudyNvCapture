@@ -35,6 +35,8 @@ static IDXGISwapChainVtbl vtbl;
 std::vector<NvIFREncoder*> pEncoderArray;
 std::vector<IDXGISwapChain*> WindowArray;
 
+int WindowRunning = 0;
+
 inline HWND GetOutputWindow(IDXGISwapChain * This) 
 {
 	// Does not run at all
@@ -46,19 +48,11 @@ inline HWND GetOutputWindow(IDXGISwapChain * This)
 
 static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * This, UINT SyncInterval, UINT Flags) 
 {
-	int WindowRunning = -1;
 	// "This" is different for each window. 
 	// We can do a comparison checking "This", then storing that and using 
 	// that variable to keep track of which variable belongs to which window.	
-	
 	IUnknown *pIUnkown;
-	for (int i = 0; i < WindowArray.size(); ++i) {
-		if (WindowArray[i] == This) {
-			WindowRunning = i;
-			vtbl.GetDevice(WindowArray[i], __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
-			break;
-		}
-	}
+	vtbl.GetDevice(WindowArray[WindowRunning], __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
 
 	//ID3D10Device *pD3D10Device;
 	ID3D11Device *pD3D11Device;
@@ -143,6 +137,13 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 		return vtbl.Present(This, SyncInterval, Flags);
 	}
 	pIUnkown->Release();
+
+	if (WindowRunning == WindowArray.size() - 1) {
+		WindowRunning = 0;
+	}
+	else {
+		WindowRunning++;
+	}
 
 	return vtbl.Present(This, 0, Flags);
 }
