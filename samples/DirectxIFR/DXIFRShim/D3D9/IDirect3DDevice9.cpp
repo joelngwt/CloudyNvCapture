@@ -79,7 +79,7 @@ static HRESULT STDMETHODCALLTYPE IDirect3DDevice9_Present_Proxy(IDirect3DDevice9
 	if (!pEncoderD3D9 && !(pAppParam && pAppParam->bDwm) && !(pAppParam && pAppParam->bForceHwnd
 			&& (HWND)pAppParam->hwnd != (hDestWindowOverride ? hDestWindowOverride : GetDeviceWindow(vtbl, This)))) {
 		pEncoderD3D9 = new NvIFREncoderD3D9(This, desc.Width, desc.Height, desc.Format, pAppParam);
-		if (!pEncoderD3D9->StartEncoder()) {
+		if (!pEncoderD3D9->StartEncoder(0)) {
 			LOG_WARN(logger, "failed to start d3d9 encoder");
 			delete pEncoderD3D9;
 			pEncoderD3D9 = NULL;
