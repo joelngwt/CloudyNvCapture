@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <string>
 #include <time.h>
+#include <algorithm>
 #include "IDXGISwapChain.h"
 #include "NvIFREncoderDXGI.h"
 #include "ReplaceVtbl.h"
@@ -30,11 +31,9 @@ extern simplelogger::Logger *logger;
 extern AppParam *pAppParam;
 
 static IDXGISwapChainVtbl vtbl;
-static NvIFREncoder *pEncoder0; // Need multiple instances of this according to Gary
-static NvIFREncoder *pEncoder1;
 
-IDXGISwapChain * Window0 = NULL;
-IDXGISwapChain * Window1 = NULL;
+std::vector<NvIFREncoder*> pEncoderArray;
+std::vector<IDXGISwapChain*> WindowArray;
 
 inline HWND GetOutputWindow(IDXGISwapChain * This) 
 {
@@ -50,30 +49,17 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 	int WindowRunning = -1;
 	// "This" is different for each window. 
 	// We can do a comparison checking "This", then storing that and using 
-	// that variable to keep track of which variable belongs to which window.
-
-	if (Window0 == NULL) {
-		Window0 = This;
-	}
-	else if (Window1 == NULL && This != Window0){
-		Window1 = This;
-	}
-
-	//LOG_INFO(logger, "IXDGISwapChain * This: " << This);
-	//LOG_INFO(logger, "IXDGISwapChain * Window0: " << Window0);
-	//LOG_INFO(logger, "IXDGISwapChain * Window1: " << Window1);
+	// that variable to keep track of which variable belongs to which window.	
 	
 	IUnknown *pIUnkown;
-	if (Window0 == This) {
-		// Player 0's window
-		WindowRunning = 0;
-		vtbl.GetDevice(Window0, __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
+	for (int i = 0; i < WindowArray.size(); ++i) {
+		if (WindowArray[i] == This) {
+			WindowRunning = i;
+			vtbl.GetDevice(WindowArray[i], __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
+			break;
+		}
 	}
-	if (Window1 != NULL && Window1 == This) {
-		// Player 1's window
-		WindowRunning = 1;
-		vtbl.GetDevice(Window1, __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
-	}
+
 	//ID3D10Device *pD3D10Device;
 	ID3D11Device *pD3D11Device;
 
@@ -116,7 +102,6 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 	// Unreal Engine uses d3d11. d3d10 code is not run.
 	
 	if (pIUnkown->QueryInterface(__uuidof(pD3D11Device), (void **)&pD3D11Device) == S_OK) {
-		LOG_INFO(logger, "WindowRunning = " << WindowRunning);
 		ID3D11Texture2D *pBackBuffer;
 
 		// This is definitely the line that determines what goes into the pEncoder. 
@@ -125,59 +110,29 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 		D3D11_TEXTURE2D_DESC desc;
 		pBackBuffer->GetDesc(&desc);
 
-		if (WindowRunning == 0) {
-			LOG_INFO(logger, "Window0");
-			if (pEncoder0 && !pEncoder0->CheckSize(desc.Width, desc.Height)) {
-				LOG_INFO(logger, "destroy d3d11 encoder, new size: " << desc.Width << "x" << desc.Height);
-				delete pEncoder0;
-				pEncoder0 = NULL;
-			}
+		if (pEncoderArray[WindowRunning] && !pEncoderArray[WindowRunning]->CheckSize(desc.Width, desc.Height)) {
+			LOG_INFO(logger, "destroy d3d11 encoder, new size: " << desc.Width << "x" << desc.Height);
+			//delete pEncoder0;
+			pEncoderArray[WindowRunning] = NULL;
+		}
 
-			// This only runs once at the very beginning (startup code)
-			if (!pEncoder0 && !(pAppParam && pAppParam->bDwm)
-				&& !(pAppParam && pAppParam->bForceHwnd && (HWND)pAppParam->hwnd != GetOutputWindow(Window0))) {
-				pEncoder0 = new NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D>(Window0, desc.Width, desc.Height,
-					desc.Format, FALSE, pAppParam);
+		// This only runs once at the very beginning (startup code)
+		if (!pEncoderArray[WindowRunning] && !(pAppParam && pAppParam->bDwm)
+			&& !(pAppParam && pAppParam->bForceHwnd && (HWND)pAppParam->hwnd != GetOutputWindow(WindowArray[WindowRunning]))) {
+			pEncoderArray[WindowRunning] = new NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D>(WindowArray[WindowRunning], desc.Width, desc.Height,
+				desc.Format, FALSE, pAppParam);
 
-				if (!pEncoder0->StartEncoder(0)) {
-					LOG_WARN(logger, "failed to start d3d11 encoder");
-					delete pEncoder0;
-					pEncoder0 = NULL;
-				}
-			}
-
-			if (pEncoder0 && This == Window0) {
-				// The pEncoder probably receives the pBackBuffer data here every frame.
-				if (!((NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D> *)pEncoder0)->UpdateSharedSurface(pD3D11Device, pBackBuffer)) {
-					LOG_WARN(logger, "d3d11 UpdateSharedSurface failed");
-				}
+			if (!pEncoderArray[WindowRunning]->StartEncoder(WindowRunning)) {
+				LOG_WARN(logger, "failed to start d3d11 encoder");
+				//delete pEncoder0;
+				pEncoderArray[WindowRunning] = NULL;
 			}
 		}
-		else if (WindowRunning == 1) {
-			LOG_INFO(logger, "Window1");
-			if (pEncoder1 && !pEncoder1->CheckSize(desc.Width, desc.Height)) {
-				LOG_INFO(logger, "destroy d3d11 encoder, new size: " << desc.Width << "x" << desc.Height);
-				delete pEncoder1;
-				pEncoder1 = NULL;
-			}
 
-			// This only runs once at the very beginning (startup code)
-			if (!pEncoder1 && !(pAppParam && pAppParam->bDwm)
-				&& !(pAppParam && pAppParam->bForceHwnd && (HWND)pAppParam->hwnd != GetOutputWindow(Window1))) {
-				pEncoder1 = new NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D>(Window1, desc.Width, desc.Height,
-					desc.Format, FALSE, pAppParam);
-
-				if (!pEncoder1->StartEncoder(1)) {
-					LOG_WARN(logger, "failed to start d3d11 encoder");
-					delete pEncoder1;
-					pEncoder1 = NULL;
-				}
-			}
-			if (pEncoder1 && This == Window1) {
-				// The pEncoder probably receives the pBackBuffer data here every frame.
-				if (!((NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D> *)pEncoder1)->UpdateSharedSurface(pD3D11Device, pBackBuffer)) {
-					LOG_WARN(logger, "d3d11 UpdateSharedSurface failed");
-				}
+		if (pEncoderArray[WindowRunning] && This == WindowArray[WindowRunning]) {
+			// The pEncoder probably receives the pBackBuffer data here every frame.
+			if (!((NvIFREncoderDXGI<ID3D11Device, ID3D11Texture2D> *)pEncoderArray[WindowRunning])->UpdateSharedSurface(pD3D11Device, pBackBuffer)) {
+				LOG_WARN(logger, "d3d11 UpdateSharedSurface failed");
 			}
 		}
 		pBackBuffer->Release();
@@ -206,14 +161,22 @@ static ULONG STDMETHODCALLTYPE IDXGISwapChain_Release_Proxy(IDXGISwapChain * Thi
 	// 1st window opened: prints 1st window
 	// 2nd window opened: prints 1st and 2nd window
 	//LOG_INFO(logger, "IDXGISwapChain_Release_Proxy(IDXGISwapChain * This) : " << This);
+
+	// If no elements match, WindowArray.end() is returned.
+	if (std::find(WindowArray.begin(), WindowArray.end(), This) == WindowArray.end()) {
+		WindowArray.push_back(This);
+		static NvIFREncoder *pEncoder;
+		pEncoderArray.push_back(pEncoder);
+	}
+	
 	LOG_TRACE(logger, __FUNCTION__);
 	vtbl.AddRef(This);
 	ULONG uRef = vtbl.Release(This) - 1;
-	if (uRef == 0 && pEncoder0 && pEncoder0->CheckPresenter(This)) {
+	if (uRef == 0 && pEncoderArray.size() != 0 && pEncoderArray[0]->CheckPresenter(This)) {
 		// This does not run at all.
-		LOG_DEBUG(logger, "delete pEncoder0 in Release(), pEncoder0=" << pEncoder0);
-		delete pEncoder0;
-		pEncoder0 = NULL;
+		LOG_DEBUG(logger, "delete pEncoder0 in Release(), pEncoder0=" << pEncoderArray[0]);
+		//delete pEncoder0;
+		pEncoderArray[0] = NULL;
 	}
 	return vtbl.Release(This);
 }

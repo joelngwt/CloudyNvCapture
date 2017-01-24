@@ -65,7 +65,7 @@ extern simplelogger::Logger *logger;
 #define MAX_PLAYERS 12
 
 HANDLE gpuEvent = NULL;
-uint8_t *buffer = NULL;
+uint8_t *bufferArray[MAX_PLAYERS];
 
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
@@ -411,93 +411,97 @@ void NvIFREncoder::StopEncoder()
 
 void NvIFREncoder::FFMPEGThreadProc(int playerIndex)
 {
-    if (serverOpened[playerIndex] == false)
-    {
-        const char *filename = NULL;
-        AVCodec *video_codec;
+	if (serverOpened[playerIndex] == false)
+	{
+		const char *filename = NULL;
+		AVCodec *video_codec;
 
-        topRightX[playerIndex] = playerIndex % cols * splitWidth;
+		topRightX[playerIndex] = playerIndex % cols * splitWidth;
 
-        if (playerIndex >= 0 && playerIndex <= 3) {
-            topRightY[playerIndex] = 0;
-        }
-        else if (playerIndex >= 4 && playerIndex <= 7) {
-            topRightY[playerIndex] = splitHeight;
-        }
-        else if (playerIndex >= 8 && playerIndex <= 11) {
-            topRightY[playerIndex] = splitHeight * 2;
-        }
-        
-        /* Initialize libavcodec, and register all codecs and formats. */
-        av_register_all();
-        // Global initialization of network components
-        avformat_network_init();
+		if (playerIndex >= 0 && playerIndex <= 3) {
+			topRightY[playerIndex] = 0;
+		}
+		else if (playerIndex >= 4 && playerIndex <= 7) {
+			topRightY[playerIndex] = splitHeight;
+		}
+		else if (playerIndex >= 8 && playerIndex <= 11) {
+			topRightY[playerIndex] = splitHeight * 2;
+		}
 
-        /* allocate the output media context */
-        avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
-        if (!outCtxArray[playerIndex]) {
-            LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
-            avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
-        }
-        if (!outCtxArray[playerIndex]) {
-            LOG_WARN(logger, "No output context.");
-            return;
-        }
+		/* Initialize libavcodec, and register all codecs and formats. */
+		av_register_all();
+		// Global initialization of network components
+		avformat_network_init();
 
-        fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
+		/* allocate the output media context */
+		avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
+		if (!outCtxArray[playerIndex]) {
+			LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
+			avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
+		}
+		if (!outCtxArray[playerIndex]) {
+			LOG_WARN(logger, "No output context.");
+			return;
+		}
 
-        /* Add the audio and video streams using the default format codecs
-        * and initialize the codecs. */
-        if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
-            add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
-        }
+		fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
 
-        if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
+		/* Add the audio and video streams using the default format codecs
+		* and initialize the codecs. */
+		if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
+			add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
+		}
+
+		if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
 			LOG_WARN(logger, "Failed to set -re mode.");
-            return;
-        }
+			return;
+		}
 
-        /* Now that all the parameters are set, we can open the audio and
-        * video codecs and allocate the necessary encode buffers. */
-        open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
-        av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
+		/* Now that all the parameters are set, we can open the audio and
+		* video codecs and allocate the necessary encode buffers. */
+		open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
+		av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
 
-        AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+		AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-        if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
+		if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
 			LOG_WARN(logger, "Failed to set listen mode for server.");
-            return;
-        }
+			return;
+		}
 
-        if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
+		if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
 			LOG_WARN(logger, "Failed to set -an mode.");
-            return;
-        }
+			return;
+		}
 
-        std::stringstream *HTTPUrl = new std::stringstream();
-        *HTTPUrl << "http://137.132.82.160:" << 30000 + playerIndex;
+		std::stringstream *HTTPUrl = new std::stringstream();
+		*HTTPUrl << "http://137.132.82.160:" << 30000 + playerIndex;
 
-        // Open server
-        if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-            LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
-            return;
-        }
-        LOG_DEBUG(logger, "Server " << playerIndex << " opened.");
+		// Open server
+		if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
+			LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
+			return;
+		}
+		LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
 
-        /* Write the stream header, if any. */
-        ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
-        if (ret[playerIndex] < 0) {
-            LOG_ERROR(logger, "Error occurred when opening output file.\n");
-            return;
-        }
+		/* Write the stream header, if any. */
+		ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
+		if (ret[playerIndex] < 0) {
+			LOG_ERROR(logger, "Error occurred when opening output file.\n");
+			return;
+		}
 
-        serverOpened[playerIndex] = true;
-    }
+		serverOpened[playerIndex] = true;
+	}
+	//if (playerIndex == 0) {
+		write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], bufferArray[playerIndex], topRightY[playerIndex], topRightX[playerIndex]);
+	//}
+	//if (playerIndex == 1) {
+	//	write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer1, topRightY[playerIndex], topRightX[playerIndex]);
+	//}
+	//numThreads[playerIndex]--;    
 
-    write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], buffer, topRightY[playerIndex], topRightX[playerIndex]);
-    numThreads[playerIndex]--;    
-
-	_endthread();
+	//_endthread();
 }
 
 void NvIFREncoder::EncoderThreadProc(int index) 
@@ -530,9 +534,9 @@ void NvIFREncoder::EncoderThreadProc(int index)
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
 	params.dwTargetWidth = bufferWidth;
 	params.dwTargetHeight = bufferHeight;
-	params.ppPageLockedSysmemBuffers = &buffer;
-	params.ppTransferCompletionEvents = &gpuEvent; 
-    
+	params.ppPageLockedSysmemBuffers = &bufferArray[index];
+	params.ppTransferCompletionEvents = &gpuEvent;
+	 
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
     
 	if (nr != NVIFR_SUCCESS) {
@@ -561,76 +565,24 @@ void NvIFREncoder::EncoderThreadProc(int index)
    
         if (res == NVIFR_SUCCESS)
         {
-            DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE);
-            if (dwRet != WAIT_OBJECT_0)// If not signalled
-            {
-                if (dwRet != WAIT_OBJECT_0 + 1)
-                {
-                    LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
-                }
-                return;
-            }
+            //DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE);
+            //if (dwRet != WAIT_OBJECT_0)// If not signalled
+            //{
+            //    if (dwRet != WAIT_OBJECT_0 + 1)
+            //    {
+            //        LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
+            //    }
+            //    return;
+            //}
    
-            if (index == 0 && numThreads[0] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc0, 0, this);
-                numThreads[0]++;
-            }
-            if (index == 1 && numThreads[1] < 1)
-            {
-                FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc1, 0, this);
-                numThreads[1]++;
-            }
-            //if (numPlayers > 2 && numThreads[2] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc2, 0, this);
-            //    numThreads[2]++;
-            //}
-            //if (numPlayers > 3 && numThreads[3] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc3, 0, this);
-            //    numThreads[3]++;
-            //}
-            //if (numPlayers > 4 && numThreads[4] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc4, 0, this);
-            //    numThreads[4]++;
-            //}
-            //if (numPlayers > 5 && numThreads[5] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc5, 0, this);
-            //    numThreads[5]++;
-            //}
-            //if (numPlayers > 6 && numThreads[6] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc6, 0, this);
-            //    numThreads[6]++;
-            //}
-            //if (numPlayers > 7 && numThreads[7] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc7, 0, this);
-            //    numThreads[7]++;
-            //}
-            //if (numPlayers > 8 && numThreads[8] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc8, 0, this);
-            //    numThreads[8]++;
-            //}
-            //if (numPlayers > 9 && numThreads[9] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc9, 0, this);
-            //    numThreads[9]++;
-            //}
-            //if (numPlayers > 10 && numThreads[10] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc10, 0, this);
-            //    numThreads[10]++;
-            //}
-            //if (numPlayers > 11 && numThreads[11] < 1)
-            //{
-            //    FFMPEGThread = (HANDLE)_beginthread(FFMPEGThreadStartProc11, 0, this);
-            //    numThreads[11]++;
-            //}
+           // if (index == 0)// && numThreads[0] < 1)
+           // {
+ 			//	FFMPEGThreadProc(0);
+           // }
+           // if (index == 1)// && numThreads[1] < 1)
+           // {
+				FFMPEGThreadProc(index);
+           // }
             
             ResetEvent(gpuEvent);
         }
