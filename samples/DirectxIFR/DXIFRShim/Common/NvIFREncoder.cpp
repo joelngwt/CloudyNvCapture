@@ -64,7 +64,7 @@ extern simplelogger::Logger *logger;
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 #define MAX_PLAYERS 12
 
-HANDLE gpuEvent = NULL;
+HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
@@ -535,7 +535,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
 	params.dwTargetWidth = bufferWidth;
 	params.dwTargetHeight = bufferHeight;
 	params.ppPageLockedSysmemBuffers = &bufferArray[index];
-	params.ppTransferCompletionEvents = &gpuEvent;
+	params.ppTransferCompletionEvents = &gpuEvent[index];
 	 
 	NVIFRRESULT nr = pIFR->NvIFRSetUpTargetBufferToSys(&params);
     
@@ -565,26 +565,26 @@ void NvIFREncoder::EncoderThreadProc(int index)
    
         if (res == NVIFR_SUCCESS)
         {
-            //DWORD dwRet = WaitForSingleObject(gpuEvent, INFINITE);
-            //if (dwRet != WAIT_OBJECT_0)// If not signalled
-            //{
-            //    if (dwRet != WAIT_OBJECT_0 + 1)
-            //    {
-            //        LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
-            //    }
-            //    return;
-            //}
+            DWORD dwRet = WaitForSingleObject(gpuEvent[index], INFINITE);
+            if (dwRet != WAIT_OBJECT_0)// If not signalled
+            {
+                if (dwRet != WAIT_OBJECT_0 + 1)
+                {
+                    LOG_WARN(logger, "Abnormally break from encoding loop, dwRet=" << dwRet);
+                }
+                return;
+            }
    
             FFMPEGProc(index);
             
-            ResetEvent(gpuEvent);
+            ResetEvent(gpuEvent[index]);
         }
         else
         {
             LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
         }
         // Prevent doing extra work (25 FPS)
-        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
