@@ -94,7 +94,7 @@ protected:
 
 private:
 	void EncoderThreadProc(int index);
-    void FFMPEGProc(int playerIndex);
+	void SetupFFMPEGServer(int playerIndex);
 
 	static void EncoderThreadStartProc0(void *args) 
 	{

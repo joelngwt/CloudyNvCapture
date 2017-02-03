@@ -27,32 +27,19 @@
 #include <process.h>
 #include <NvIFRLibrary.h>
 #include "NvIFREncoder.h"
-#include "Util4Streamer.h"
-#include <chrono>
 #include <thread>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
 
 extern "C"
 {
-	#include <libavutil/avassert.h>
-	#include <libavutil/channel_layout.h>
 	#include <libavutil/opt.h>
-	#include <libavutil/mathematics.h>
 	#include <libavformat/avformat.h>
 	#include <libswscale/swscale.h>
 	#include <libswresample/swresample.h>
-	#include <libavutil/buffer.h>
 }
 
 #pragma comment(lib, "avcodec.lib")
-#pragma comment(lib, "avdevice.lib")
-#pragma comment(lib, "avfilter.lib")
 #pragma comment(lib, "avformat.lib")
 #pragma comment(lib, "swscale.lib")
-#pragma comment(lib, "postproc.lib")
 #pragma comment(lib, "swresample.lib")
 #pragma comment(lib, "avutil.lib")
 
@@ -60,26 +47,31 @@ extern "C"
 
 extern simplelogger::Logger *logger;
 
-#define PIXEL_SIZE 1.5
+// Nvidia GRID capture variables
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 #define MAX_PLAYERS 12
-
 HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
+// FFmpeg constants
 #define STREAM_FRAME_RATE 25 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 
-int bufferWidth, bufferHeight;
+// Output video size. Nvidia capture will produce frames of this size
+const int bufferWidth = 1280;
+const int bufferHeight = 720;
 
-AVFormatContext *outCtxArray[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-int ret[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-AVDictionary *opt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-AVOutputFormat *fmt[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+// Streaming IP address
+const std::string streamingIP = "http://137.132.82.160:";
+const int firstPort = 30000;
 
-bool serverOpened[MAX_PLAYERS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+// Arrays used by FFmpeg
+AVFormatContext *outCtxArray[MAX_PLAYERS] = {};
+AVDictionary *optionsOutput[MAX_PLAYERS] = {};
+int ret[MAX_PLAYERS] = {};
+AVDictionary *opt[MAX_PLAYERS] = {};
+AVOutputFormat *fmt[MAX_PLAYERS] = {};
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -140,12 +132,12 @@ enum AVCodecID codec_id)
 	ost->enc = c;
 
     AVRational time_base = { 1, STREAM_FRAME_RATE };
-    AVRational framerate = { 25, 1 };
+	AVRational framerate = { STREAM_FRAME_RATE, 1 };
 
 	c->codec_id = codec_id;
 	c->bit_rate = 400000;
 	/* Resolution must be a multiple of two. */
-    c->width = bufferWidth;
+	c->width = bufferWidth;
 	c->height = bufferHeight;
 	/* timebase: This is the fundamental unit of time (in seconds) in terms
 	* of which frame timestamps are represented. For fixed-fps content,
@@ -255,7 +247,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 /* Prepare a dummy image. */
 static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
 {
-    pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
+	pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
 	pict->height = bufferHeight;
 
     // width and height parameters are the width and height of actual output.
@@ -434,86 +426,77 @@ void NvIFREncoder::StopEncoder()
 	hevtStopEncoder = NULL;
 }
 
-void NvIFREncoder::FFMPEGProc(int playerIndex)
+void NvIFREncoder::SetupFFMPEGServer(int playerIndex)
 {
-	if (serverOpened[playerIndex] == false)
-	{
-		const char *filename = NULL;
-		AVCodec *video_codec;
+	const char *filename = NULL;
+	AVCodec *video_codec;
 
-		/* Initialize libavcodec, and register all codecs and formats. */
-		av_register_all();
-		// Global initialization of network components
-		avformat_network_init();
+	/* Initialize libavcodec, and register all codecs and formats. */
+	av_register_all();
+	// Global initialization of network components
+	avformat_network_init();
 
-		/* allocate the output media context */
-		avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
-		if (!outCtxArray[playerIndex]) {
-			LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
-			avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
-		}
-		if (!outCtxArray[playerIndex]) {
-			LOG_WARN(logger, "No output context.");
-			return;
-		}
-
-		fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
-
-		/* Add the audio and video streams using the default format codecs
-		* and initialize the codecs. */
-		if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
-			add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
-		}
-
-		if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
-			LOG_WARN(logger, "Failed to set -re mode.");
-			return;
-		}
-
-		/* Now that all the parameters are set, we can open the audio and
-		* video codecs and allocate the necessary encode buffers. */
-		open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
-		av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
-
-		AVDictionary *optionsOutput[MAX_PLAYERS] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-
-		if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
-			LOG_WARN(logger, "Failed to set listen mode for server.");
-			return;
-		}
-
-		if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
-			LOG_WARN(logger, "Failed to set -an mode.");
-			return;
-		}
-
-		std::stringstream *HTTPUrl = new std::stringstream();
-		*HTTPUrl << "http://137.132.82.160:" << 30000 + playerIndex;
-
-		// Open server
-		if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-			LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
-			return;
-		}
-		LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
-
-		/* Write the stream header, if any. */
-		ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
-		if (ret[playerIndex] < 0) {
-			LOG_ERROR(logger, "Error occurred when opening output file.\n");
-			return;
-		}
-
-		serverOpened[playerIndex] = true;
+	/* allocate the output media context */
+	avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
+	if (!outCtxArray[playerIndex]) {
+		LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
+		avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
 	}
-	write_video_frame(outCtxArray[playerIndex], &video_st[playerIndex], bufferArray[playerIndex]);
+	if (!outCtxArray[playerIndex]) {
+		LOG_WARN(logger, "No output context.");
+		return;
+	}
+
+	fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
+
+	/* Add the audio and video streams using the default format codecs
+	* and initialize the codecs. */
+	if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
+		add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
+	}
+
+	if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
+		LOG_WARN(logger, "Failed to set -re mode.");
+		return;
+	}
+
+	/* Now that all the parameters are set, we can open the audio and
+	* video codecs and allocate the necessary encode buffers. */
+	open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
+	av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
+
+	AVDictionary *optionsOutput[MAX_PLAYERS] = {};
+
+	if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
+		LOG_WARN(logger, "Failed to set listen mode for server.");
+		return;
+	}
+
+	if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
+		LOG_WARN(logger, "Failed to set -an mode.");
+		return;
+	}
+
+	std::stringstream *HTTPUrl = new std::stringstream();
+	*HTTPUrl << streamingIP << firstPort + playerIndex;
+
+	// Open server
+	if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
+		LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
+		return;
+	}
+	LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
+
+	/* Write the stream header, if any. */
+	ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
+	if (ret[playerIndex] < 0) {
+		LOG_ERROR(logger, "Error occurred when opening output file.\n");
+		return;
+	}
 }
 
 void NvIFREncoder::EncoderThreadProc(int index) 
 {
-    bufferWidth = 1280;
-    bufferHeight = 720;
-
 	/*Note: 
 	1. The D3D device for encoding must be create on a seperate thread other than the game rendering thread. 
 	Otherwise, some games (such as Mass Effect 2) will run abnormally. That's why SetupNvIFR()
@@ -547,12 +530,10 @@ void NvIFREncoder::EncoderThreadProc(int index)
 	}
 	LOG_DEBUG(logger, "NvIFRSetUpTargetBufferToSys succeeded");
 
-    // At this point, servers will all be open, but not all of them have received a client.
-    // A flag will need to be toggled to let the main thread know which servers have clients.
-    // Then, we can write frames to only those servers with clients.
-
     bInitEncoderSuccessful = TRUE;
     SetEvent(hevtInitEncoderDone);
+
+	SetupFFMPEGServer(index);
 
     while (!bStopEncoder)
     {
@@ -575,7 +556,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
                 return;
             }
    
-            FFMPEGProc(index);
+			write_video_frame(outCtxArray[index], &video_st[index], bufferArray[index]);
             
             ResetEvent(gpuEvent[index]);
         }
