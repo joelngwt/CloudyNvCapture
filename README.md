@@ -2,15 +2,13 @@
 A 64-bit machine running a 64-bit application is assumed in these instructions.
 
 ## Configuring DXIFRShim
-1. Open NvIFEEncoder.cpp
-2. Search for "http://"
+1. Open NvIFEEncoder.cpp.
+2. Search for the `streamingIP` variable.
 3. Change the IP address to the IP address of the machine you want to stream from.
-4. Search for the EncoderProc() function.
-5. Change the parameters as necessary for your application. This should match the size of the game window. The following are the defaults:
-```
-bufferWidth = 1280;
-bufferHeight = 720;
-```
+4. Search for the `firstPort` variable. 
+5. Change the port to the port you want to stream from. Note that this is the first port. Additional players use the next port following it.
+6. Search for the `bufferWidth` and `bufferHeight` variables.
+7. Change the parameters as necessary for your application. This should match the size of the game window for optimal quality. 
 
 ## Compiling DXIFRShim
 1. Open DXIFRShim_VS2013.sln.
@@ -18,13 +16,14 @@ bufferHeight = 720;
 3. Build solution.
 
 ## Using DXIFRShim
-1. Rename the d3d9.dll and dxgi.dll files in the system32 folder to _d3d9.dll and _dxgi.dll
-2. Transfer d3d9.dll and dxgi.dll that was produced by DXIFRShim to the system32 folder
+1. Make a copy of the d3d9.dll an dxgi.dll files that are in the system32 folder.
+2. Rename one of the d3d9.dll and dxgi.dll files in the system32 folder to _d3d9.dll and _dxgi.dll. You should now have d3d9.dll, _d3d9.dll, dxgi.dll, and _dxgi.dll in the system32 folder.
 3. Download the FFmpeg .dll files from [Zeranoe](https://ffmpeg.zeranoe.com/builds/). Use the 64-bit shared version. If the latest build does not work due to deprecated functions, use the 20161101 version [here](https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-20161101-60178e7-win64-shared.zip).
-4. Place all the .dll files from the /bin folder into system32. Alternatively, put the .dll files together with the game executable.
-5. Launch the game .exe file.
+4. Place all the .dll files from the /bin folder into system32.
+5. After compiling the DXIFRShim solution, you should have your own d3d9.dll and dxgi.dll files. Place them together with the game executable (.exe).
+6. Launch the game .exe file.
 
-> WARNING: It is recommended that you put the .dll files into system32. If you do not have the two .dll files in system32 and you log out  of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
+> WARNING: If you do not have a working set of the two .dll files in system32 and you log out of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
 
 # NvFBCToSys
 ## Configuring NvFBCToSys
