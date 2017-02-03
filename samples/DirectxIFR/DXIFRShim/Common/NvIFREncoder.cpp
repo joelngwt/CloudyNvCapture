@@ -363,45 +363,9 @@ BOOL NvIFREncoder::StartEncoder(int index)
 	}
 	bInitEncoderSuccessful = FALSE;
 
-	if (index == 0) {
-		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc0, 0, this);
-	}
-	else if (index == 1) {
-		hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc1, 0, this);
-	}
-    else if (index == 2) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc2, 0, this);
-    }
-    else if (index == 3) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc3, 0, this);
-    }
-    else if (index == 4) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc4, 0, this);
-    }
-    else if (index == 5) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc5, 0, this);
-    }
-    else if (index == 6) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc6, 0, this);
-    }
-    else if (index == 7) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc7, 0, this);
-    }
-    else if (index == 8) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc8, 0, this);
-    }
-    else if (index == 9) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc9, 0, this);
-    }
-    else if (index == 10) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc10, 0, this);
-    }
-    else if (index == 11) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc11, 0, this);
-    }
-    else if (index == 12) {
-        hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc12, 0, this);
-    }
+	indexToUse = index;
+	hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc, 0, this);
+
 	if (!hthEncoder) {
 		return FALSE;
 	}

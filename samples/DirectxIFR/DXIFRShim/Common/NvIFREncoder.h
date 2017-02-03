@@ -96,59 +96,11 @@ private:
 	void EncoderThreadProc(int index);
 	void SetupFFMPEGServer(int playerIndex);
 
-	static void EncoderThreadStartProc0(void *args) 
+	static void EncoderThreadStartProc(void *args) 
 	{
-		((NvIFREncoder *)args)->EncoderThreadProc(0);
+		NvIFREncoder* obj = static_cast<NvIFREncoder*>(args); 
+		((NvIFREncoder *)args)->EncoderThreadProc(obj->indexToUse);
 	}
-	static void EncoderThreadStartProc1(void *args)
-	{
-		((NvIFREncoder *)args)->EncoderThreadProc(1);
-	}
-    static void EncoderThreadStartProc2(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(2);
-    }
-    static void EncoderThreadStartProc3(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(3);
-    }
-    static void EncoderThreadStartProc4(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(4);
-    }
-    static void EncoderThreadStartProc5(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(5);
-    }
-    static void EncoderThreadStartProc6(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(6);
-    }
-    static void EncoderThreadStartProc7(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(7);
-    }
-    static void EncoderThreadStartProc8(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(8);
-    }
-    static void EncoderThreadStartProc9(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(9);
-    }
-    static void EncoderThreadStartProc10(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(10);
-    }
-    static void EncoderThreadStartProc11(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(11);
-    }
-    static void EncoderThreadStartProc12(void *args)
-    {
-        ((NvIFREncoder *)args)->EncoderThreadProc(12);
-    }
-
 
 protected:
 	int nWidth, nHeight;
@@ -234,6 +186,8 @@ private:
 	const int nFrameRate;
 	const char *szClassName;
 	const void *pPresenter;
+
+	int indexToUse;
 	
 	std::vector<FILE*> PipeList;
 	HANDLE FFMPEGThread;
