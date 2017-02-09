@@ -16,14 +16,14 @@ public:
 		for (int i = 0; i < pAppParam->numPlayers; ++i)
 		{
 			std::stringstream *StringStream = new std::stringstream();
-			*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s " << width << "x" << height << \
-						     " -re -i - -filter:v crop=\"" << pAppParam->splitWidth << ":" << pAppParam->splitHeight << ":" << 0 + pAppParam->splitWidth*col << ":" << 0 + pAppParam->splitHeight*row << "\" " \
-							 "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
-							 "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
-							 "-f mpegts http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
+			*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1280x720 " \
+						     "-re -i - " \
+							 "-listen 1 -c:v h264_nvenc -preset fast -delay 0 " \
+							 "-an " \
+							 "-f mpegts http://137.132.82.160:" << 30000 + i << " 2> output" << i << ".txt";
 			//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1920x1080 -re -i - -c copy -listen 1 " \
 			//				 "-f h264 http://172.26.186.80:" << 30000 + i << " 2> output" << i << ".txt";
-
+			
 			//*StringStream << "ffmpeg -y -f rawvideo -pix_fmt rgb24 -s 1280x720 -re -i - output.h264 2> output" << i << ".txt";
 			PipeList.push_back(_popen(StringStream->str().c_str(), "wb"));
 
