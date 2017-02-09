@@ -92,7 +92,6 @@ typedef struct OutputStream {
 } OutputStream;
 
 OutputStream video_st[MAX_PLAYERS];
-//OutputStream video_st2 = { 0 };
 
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
@@ -479,8 +478,8 @@ void NvIFREncoder::EncoderThreadProc(int index)
 	params.eFormat = NVIFR_FORMAT_YUV_420;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
-	params.dwTargetWidth = bufferWidth;
-	params.dwTargetHeight = bufferHeight;
+	//params.dwTargetWidth = bufferWidth; // this is just scaling. No point wasting work on this.
+	//params.dwTargetHeight = bufferHeight;
 	params.ppPageLockedSysmemBuffers = &bufferArray[index];
 	params.ppTransferCompletionEvents = &gpuEvent[index];
 	 
