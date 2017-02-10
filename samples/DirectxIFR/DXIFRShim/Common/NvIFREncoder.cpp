@@ -111,7 +111,8 @@ enum AVCodecID codec_id)
 	AVCodecContext *c;
 
 	/* find the encoder */
-	*codec = avcodec_find_encoder(codec_id);
+	//*codec = avcodec_find_encoder(codec_id);
+	*codec = avcodec_find_encoder_by_name("nvenc_h264");
 	if (!(*codec)) {
 		LOG_WARN(logger, "Could not find encoder for" << avcodec_get_name(codec_id));
 		exit(1);
@@ -164,9 +165,10 @@ enum AVCodecID codec_id)
 		c->mb_decision = 2;
 	}
 
-	av_opt_set(c->priv_data, "preset", "ultrafast", 0);
-	av_opt_set(c->priv_data, "tune", "zerolatency", 0);
-	av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
+	av_opt_set(c->priv_data, "preset", "ll", 0);
+	//av_opt_set(c->priv_data, "tune", "zerolatency", 0);
+	av_opt_set(c->priv_data, "delay", "0", 0);
+	//av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
 
 	/* Some formats want stream headers to be separate. */
     if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
