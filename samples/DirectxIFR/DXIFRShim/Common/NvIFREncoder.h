@@ -35,6 +35,7 @@
 #include "AppParam.h"
 #include "GridAdapter.h"
 #include "Streamer.h"
+#include "LibavcodecEncoder.h"
 
 class NvIFREncoder {
 public:
@@ -94,7 +95,6 @@ protected:
 
 private:
 	void EncoderThreadProc(int index);
-	void SetupFFMPEGServer(int playerIndex);
 
 	static void EncoderThreadStartProc(void *args) 
 	{

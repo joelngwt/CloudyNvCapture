@@ -164,6 +164,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\AppParam.cpp" />
+    <ClCompile Include="..\Common\LibavcodecEncoder.cpp" />
     <ClCompile Include="..\Common\NvIFREncoder.cpp" />
     <ClCompile Include="D3D9.cpp" />
     <ClCompile Include="IDirect3D9.cpp" />
@@ -176,6 +177,7 @@
   <ItemGroup>
     <ClInclude Include="..\Common\AppParam.h" />
     <ClInclude Include="..\Common\GridAdapter.h" />
+    <ClInclude Include="..\Common\LibavcodecEncoder.h" />
     <ClInclude Include="..\Common\Logger.h" />
     <ClInclude Include="..\Common\NvIFREncoder.h" />
     <ClInclude Include="..\Common\ReplaceVtbl.h" />
