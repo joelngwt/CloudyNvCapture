@@ -193,7 +193,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Common\AppParam.cpp" />
-    <ClCompile Include="..\Common\LibavcodecEncoder.cpp" />
     <ClCompile Include="..\Common\NvIFREncoder.cpp" />
     <ClCompile Include="..\Common\NvIFREncoderDXGIBase.cpp" />
     <ClCompile Include="DXGI.cpp" />
@@ -204,7 +203,6 @@
   <ItemGroup>
     <ClInclude Include="..\Common\AppParam.h" />
     <ClInclude Include="..\Common\GridAdapter.h" />
-    <ClInclude Include="..\Common\LibavcodecEncoder.h" />
     <ClInclude Include="..\Common\Logger.h" />
     <ClInclude Include="..\Common\NvIFREncoder.h" />
     <ClInclude Include="..\Common\NvIFREncoderDXGIBase.h" />
