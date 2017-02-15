@@ -104,9 +104,7 @@ static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AV
 }
 
 /* Add an output stream. */
-static void add_stream(OutputStream *ost, AVFormatContext *oc,
-	AVCodec **codec,
-enum AVCodecID codec_id)
+static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, enum AVCodecID codec_id)
 {
 	AVCodecContext *c;
 
@@ -245,15 +243,11 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-/* Prepare a dummy image. */
+/* Converts uint8_t buffer to an AVFrame */
 static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
 {
 	pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
 	pict->height = bufferHeight;
-
-    // width and height parameters are the width and height of actual output.
-    // Function requires top right corner coordinates.
-
 	pict->format = AV_PIX_FMT_YUV420P; 
 
     avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
@@ -347,51 +341,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	swr_free(&ost->swr_ctx);
 }
 
-
-BOOL NvIFREncoder::StartEncoder(int index) 
-{
-	hevtStopEncoder = CreateEvent(NULL, TRUE, FALSE, NULL);
-	if (!hevtStopEncoder) {
-		LOG_ERROR(logger, "Failed to create hevtStopEncoder");
-		return FALSE;
-	}
-	bStopEncoder = FALSE;
-
-	hevtInitEncoderDone = CreateEvent(NULL, TRUE, FALSE, NULL);
-	if (!hevtInitEncoderDone) {
-		LOG_ERROR(logger, "Failed to create hevtInitEncoderDone");
-		return FALSE;
-	}
-	bInitEncoderSuccessful = FALSE;
-
-	indexToUse = index;
-	hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc, 0, this);
-
-	if (!hthEncoder) {
-		return FALSE;
-	}
-
-	WaitForSingleObject(hevtInitEncoderDone, INFINITE);
-	CloseHandle(hevtInitEncoderDone);
-	hevtInitEncoderDone = NULL;
-
-	return bInitEncoderSuccessful;
-}
-
-void NvIFREncoder::StopEncoder() 
-{
-	if (bStopEncoder || !hevtStopEncoder || !hthEncoder) {
-		return;
-	}
-
-	bStopEncoder = TRUE;
-	SetEvent(hevtStopEncoder);
-	WaitForSingleObject(hthEncoder, INFINITE);
-	CloseHandle(hevtStopEncoder);
-	hevtStopEncoder = NULL;
-}
-
-void NvIFREncoder::SetupFFMPEGServer(int playerIndex)
+void SetupFFMPEGServer(int playerIndex)
 {
 	const char *filename = NULL;
 	AVCodec *video_codec;
@@ -460,6 +410,68 @@ void NvIFREncoder::SetupFFMPEGServer(int playerIndex)
 	}
 }
 
+void CleanupLibavCodec(int index)
+{
+	/* Write the trailer, if any. The trailer must be written before you
+	* close the CodecContexts open when you wrote the header; otherwise
+	* av_write_trailer() may try to use memory that was freed on
+	* av_codec_close(). */
+	av_write_trailer(outCtxArray[index]);
+
+	/* Close each codec. */
+	close_stream(outCtxArray[index], &video_st[index]);
+
+	if (!(fmt[index]->flags & AVFMT_NOFILE))
+		/* Close the output file. */
+		avio_closep(&outCtxArray[index]->pb);
+
+	/* free the stream */
+	avformat_free_context(outCtxArray[index]);
+}
+
+BOOL NvIFREncoder::StartEncoder(int index) 
+{
+	hevtStopEncoder = CreateEvent(NULL, TRUE, FALSE, NULL);
+	if (!hevtStopEncoder) {
+		LOG_ERROR(logger, "Failed to create hevtStopEncoder");
+		return FALSE;
+	}
+	bStopEncoder = FALSE;
+
+	hevtInitEncoderDone = CreateEvent(NULL, TRUE, FALSE, NULL);
+	if (!hevtInitEncoderDone) {
+		LOG_ERROR(logger, "Failed to create hevtInitEncoderDone");
+		return FALSE;
+	}
+	bInitEncoderSuccessful = FALSE;
+
+	indexToUse = index;
+	hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc, 0, this);
+
+	if (!hthEncoder) {
+		return FALSE;
+	}
+
+	WaitForSingleObject(hevtInitEncoderDone, INFINITE);
+	CloseHandle(hevtInitEncoderDone);
+	hevtInitEncoderDone = NULL;
+
+	return bInitEncoderSuccessful;
+}
+
+void NvIFREncoder::StopEncoder() 
+{
+	if (bStopEncoder || !hevtStopEncoder || !hthEncoder) {
+		return;
+	}
+
+	bStopEncoder = TRUE;
+	SetEvent(hevtStopEncoder);
+	WaitForSingleObject(hthEncoder, INFINITE);
+	CloseHandle(hevtStopEncoder);
+	hevtStopEncoder = NULL;
+}
+
 void NvIFREncoder::EncoderThreadProc(int index) 
 {
 	/*Note: 
@@ -480,8 +492,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
 	params.eFormat = NVIFR_FORMAT_YUV_420;
 	params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE; 
 	params.dwNBuffers = NUMFRAMESINFLIGHT; 
-	//params.dwTargetWidth = bufferWidth; // this is just scaling. No point wasting work on this.
-	//params.dwTargetHeight = bufferHeight;
 	params.ppPageLockedSysmemBuffers = &bufferArray[index];
 	params.ppTransferCompletionEvents = &gpuEvent[index];
 	 
@@ -534,22 +544,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
-    /* Write the trailer, if any. The trailer must be written before you
-        * close the CodecContexts open when you wrote the header; otherwise
-        * av_write_trailer() may try to use memory that was freed on
-        * av_codec_close(). */
-    av_write_trailer(outCtxArray[index]);
-
-    /* Close each codec. */
-	close_stream(outCtxArray[index], &video_st[index]);
-
-	if (!(fmt[index]->flags & AVFMT_NOFILE))
-        /* Close the output file. */
-		avio_closep(&outCtxArray[index]->pb);
-
-    /* free the stream */
-	avformat_free_context(outCtxArray[index]);
- 
+	CleanupLibavCodec(index); 
 	CleanupNvIFR();
 }
 
