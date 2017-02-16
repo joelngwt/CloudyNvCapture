@@ -63,7 +63,7 @@ const int bufferWidth = 1280;
 const int bufferHeight = 720;
 
 // Streaming IP address
-const std::string streamingIP = "http://137.132.82.160:";
+const std::string streamingIP = "http://137.132.82.195:";
 const int firstPort = 30000;
 
 // Arrays used by FFmpeg
