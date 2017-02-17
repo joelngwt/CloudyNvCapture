@@ -93,7 +93,7 @@ typedef struct OutputStream {
 
 OutputStream video_st[MAX_PLAYERS];
 
-static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
+static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
 	/* rescale output packet timestamp values from codec to stream timebase */
 	av_packet_rescale_ts(pkt, *time_base, st->time_base);
@@ -149,7 +149,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 	c->max_b_frames = 0;
 	c->rc_min_vbv_overflow_use = 400000;
 	c->thread_count = 1;
-
+	
 	c->gop_size = 30; /* emit one intra frame every twelve frames at most */
 	c->pix_fmt = STREAM_PIX_FMT;
 	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
@@ -163,7 +163,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 		c->mb_decision = 2;
 	}
 
-	av_opt_set(c->priv_data, "preset", "ll", 0);
+	av_opt_set(c->priv_data, "preset", "llhp", 0);
 	//av_opt_set(c->priv_data, "tune", "zerolatency", 0);
 	av_opt_set(c->priv_data, "delay", "0", 0);
 	//av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
@@ -244,7 +244,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 /* Converts uint8_t buffer to an AVFrame */
-static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
+static inline void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
 {
 	pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
 	pict->height = bufferHeight;
@@ -253,7 +253,7 @@ static void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
     avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
 }
 
-static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
+static inline AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
 {
 	AVCodecContext *c = ost->enc;
 
@@ -294,7 +294,7 @@ static AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
+static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
 {
 	int ret;
 	AVCodecContext *c;
@@ -421,9 +421,10 @@ void CleanupLibavCodec(int index)
 	/* Close each codec. */
 	close_stream(outCtxArray[index], &video_st[index]);
 
-	if (!(fmt[index]->flags & AVFMT_NOFILE))
+	if (!(fmt[index]->flags & AVFMT_NOFILE)) {
 		/* Close the output file. */
 		avio_closep(&outCtxArray[index]->pb);
+	}
 
 	/* free the stream */
 	avformat_free_context(outCtxArray[index]);
