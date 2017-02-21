@@ -61,7 +61,7 @@ public:
 	}
 
 public:
-	virtual BOOL StartEncoder(int index);
+	virtual BOOL StartEncoder(int index, int windowWidth, int windowHeight);
 	virtual void StopEncoder();
 	BOOL CheckSize(int nWidth, int nHeight) {
 		return this->nWidth == nWidth && this->nHeight == nHeight;

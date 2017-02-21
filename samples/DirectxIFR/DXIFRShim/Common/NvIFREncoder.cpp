@@ -59,8 +59,8 @@ uint8_t *bufferArray[MAX_PLAYERS];
 #define SCALE_FLAGS SWS_BICUBIC
 
 // Output video size. Nvidia capture will produce frames of this size
-const int bufferWidth = 1280;
-const int bufferHeight = 720;
+int bufferWidth;
+int bufferHeight;
 
 // Streaming IP address
 const std::string streamingIP = "http://137.132.82.195:";
@@ -430,8 +430,11 @@ void CleanupLibavCodec(int index)
 	avformat_free_context(outCtxArray[index]);
 }
 
-BOOL NvIFREncoder::StartEncoder(int index) 
+BOOL NvIFREncoder::StartEncoder(int index, int windowWidth, int windowHeight) 
 {
+	bufferWidth = windowWidth;
+	bufferHeight = windowHeight;
+	
 	hevtStopEncoder = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (!hevtStopEncoder) {
 		LOG_ERROR(logger, "Failed to create hevtStopEncoder");
