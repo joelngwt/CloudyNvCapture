@@ -46,9 +46,8 @@ public:
 		bKeyedMutex(bKeyedMutex), 
 		pAppParam(pAppParam), pStreamer(pStreamer),
 		bStopEncoder(TRUE), pIFR(NULL), hSharedTexture(NULL),
-		nFrameRate(25),
 		szClassName("NvIFREncoder"),
-		pBitStreamBuffer(NULL), hevtEncodeComplete(NULL),
+		pBitStreamBuffer(NULL),
 		bInitEncoderSuccessful(FALSE), hevtInitEncoderDone(NULL), hthEncoder(NULL), hevtStopEncoder(NULL)
 	{}
 	virtual ~NvIFREncoder() 
@@ -168,21 +167,22 @@ protected:
 		static D3D11_BOX box = {0, 0, 0, 1, 1, 1};
 		ID3D11DeviceContext *pContextX = NULL;
 		pDeviceX->GetImmediateContext(&pContextX);
-		pContextX->CopySubresourceRegion(pCommitTextureX, 0, 0, 0, 0, pTextureX, 0, &box);
+		//pContextX->CopySubresourceRegion(pCommitTextureX, 0, 0, 0, 0, pTextureX, 0, &box);
 		D3D11_MAPPED_SUBRESOURCE mappedTexture;
-		HRESULT hr = pContextX->Map(pCommitTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
+		//HRESULT hr = pContextX->Map(pCommitTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
+        HRESULT hr = pContextX->Map(pTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
 		if (FAILED(hr)) {
 			LOG_ERROR(logger, "Map hr=" << hr);
 			return FALSE;
 		}
 		BYTE c = *(BYTE*)mappedTexture.pData;
-		pContextX->Unmap(pCommitTextureX, 0);
+		//pContextX->Unmap(pCommitTextureX, 0);
+        pContextX->Unmap(pTextureX, 0);
 		pContextX->Release();
 		return TRUE;
 	}
 
 private:
-	const int nFrameRate;
 	const char *szClassName;
 	const void *pPresenter;
 
@@ -192,7 +192,6 @@ private:
 	HANDLE FFMPEGThread;
 
 	BYTE *pBitStreamBuffer;
-	HANDLE hevtEncodeComplete;
 
 	BOOL bInitEncoderSuccessful;
 	HANDLE hevtInitEncoderDone;

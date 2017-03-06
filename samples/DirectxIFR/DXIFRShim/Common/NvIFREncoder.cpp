@@ -58,9 +58,10 @@ uint8_t *bufferArray[MAX_PLAYERS];
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 
-// Output video size. Nvidia capture will produce frames of this size
+// Input and Output video size
 int bufferWidth;
 int bufferHeight;
+const int targetStreamFPS = 60;
 
 // Streaming IP address
 const std::string streamingIP = "http://137.132.82.195:";
@@ -72,6 +73,27 @@ AVDictionary *optionsOutput[MAX_PLAYERS] = {};
 int ret[MAX_PLAYERS] = {};
 AVDictionary *opt[MAX_PLAYERS] = {};
 AVOutputFormat *fmt[MAX_PLAYERS] = {};
+
+LONGLONG g_llBegin1 = 0;
+LONGLONG g_llPerfFrequency1 = 0;
+BOOL g_timeInitialized1 = FALSE;
+
+#define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
+#define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
+
+double GetFloatingDate1()
+{
+    LONGLONG llNow;
+
+    if (!g_timeInitialized1)
+    {
+        QPC(g_llBegin1);
+        QPF(g_llPerfFrequency1);
+        g_timeInitialized1 = TRUE;
+    }
+    QPC(llNow);
+    return(((double)(llNow - g_llBegin1) / (double)g_llPerfFrequency1));
+}
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -392,8 +414,16 @@ void SetupFFMPEGServer(int playerIndex)
 		return;
 	}
 
+    string port;
+    ifstream myfile("CloudyPort.txt");
+    if (myfile.is_open())
+    {
+        getline(myfile, port);
+        myfile.close();
+    }
+
 	std::stringstream *HTTPUrl = new std::stringstream();
-	*HTTPUrl << streamingIP << firstPort + playerIndex;
+    *HTTPUrl << streamingIP << port;// +playerIndex;
 
 	// Open server
 	if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
@@ -514,18 +544,23 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
 	SetupFFMPEGServer(index);
 
+    UINT uFrameCount = 0;
+    DWORD dwTimeZero = timeGetTime();
+
     while (!bStopEncoder)
     {
         if (!UpdateBackBuffer())
         {
             LOG_DEBUG(logger, "UpdateBackBuffer() failed");
         }
-   
+
         NVIFRRESULT res = pIFR->NvIFRTransferRenderTargetToSys(0);
-   
+
         if (res == NVIFR_SUCCESS)
         {
-            DWORD dwRet = WaitForSingleObject(gpuEvent[index], INFINITE);
+            HANDLE ahevt[] = { gpuEvent[index], hevtStopEncoder };
+            //DWORD dwRet = WaitForSingleObject(gpuEvent[index], INFINITE);
+            DWORD dwRet = WaitForMultipleObjects(sizeof(ahevt) / sizeof(ahevt[0]), ahevt, FALSE, INFINITE);
             if (dwRet != WAIT_OBJECT_0)// If not signalled
             {
                 if (dwRet != WAIT_OBJECT_0 + 1)
@@ -534,17 +569,23 @@ void NvIFREncoder::EncoderThreadProc(int index)
                 }
                 return;
             }
-   
-			write_video_frame(outCtxArray[index], &video_st[index], bufferArray[index]);
-            
             ResetEvent(gpuEvent[index]);
+
+			write_video_frame(outCtxArray[index], &video_st[index], bufferArray[index]);
         }
         else
         {
             LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
         }
-        // Prevent doing extra work (25 FPS)
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+
+        // This improves FPS but thin client suffers from slightly jittery video
+        //std::this_thread::sleep_for(std::chrono::milliseconds(33));
+
+        // This sleeps the thread if we are producing frames faster than the desired framerate
+        int delta = (int)((dwTimeZero + ++uFrameCount * 1000 / targetStreamFPS) - timeGetTime());
+        if (delta > 0) {
+            WaitForSingleObject(hevtStopEncoder, delta);
+        }
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
