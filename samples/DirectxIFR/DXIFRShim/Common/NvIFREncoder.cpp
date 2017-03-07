@@ -414,16 +414,8 @@ void SetupFFMPEGServer(int playerIndex)
 		return;
 	}
 
-    string port;
-    ifstream myfile("CloudyPort.txt");
-    if (myfile.is_open())
-    {
-        getline(myfile, port);
-        myfile.close();
-    }
-
 	std::stringstream *HTTPUrl = new std::stringstream();
-    *HTTPUrl << streamingIP << port;// +playerIndex;
+    *HTTPUrl << streamingIP << firstPort + playerIndex;
 
 	// Open server
 	if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
