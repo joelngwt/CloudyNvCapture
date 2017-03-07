@@ -73,6 +73,7 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 	// We can do a comparison checking "This", then storing that and using 
 	// that variable to keep track of which variable belongs to which window.	
 	IUnknown *pIUnkown;
+    index = std::find(SwapChainArray.begin(), SwapChainArray.end(), This) - SwapChainArray.begin();
     vtbl.GetDevice(This, __uuidof(pIUnkown), reinterpret_cast<void **>(&pIUnkown));
 
 	//ID3D10Device *pD3D10Device;
@@ -160,13 +161,6 @@ static HRESULT STDMETHODCALLTYPE IDXGISwapChain_Present_Proxy(IDXGISwapChain * T
 		return vtbl.Present(This, SyncInterval, Flags);
 	}
 	pIUnkown->Release();
-
-    if (index == pEncoderArray.size() - 1) {
-        index = 0;
-	}
-	else {
-        index++;
-	}
 
 	return vtbl.Present(This, 0, Flags);
 }

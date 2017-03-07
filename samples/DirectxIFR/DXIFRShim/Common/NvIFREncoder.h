@@ -155,7 +155,7 @@ protected:
 		D3D10_MAPPED_TEXTURE2D mappedTexture;
 		HRESULT hr = pCommitTextureX->Map(0, D3D10_MAP_READ, 0, &mappedTexture);
 		if (FAILED(hr)) {
-			LOG_ERROR(logger, "Map hr=" << hr);
+			LOG_ERROR(logger, "Map hr d10 =" << hr);
 			return FALSE;
 		}
 		BYTE c = *(BYTE*)mappedTexture.pData;
@@ -172,7 +172,7 @@ protected:
 		//HRESULT hr = pContextX->Map(pCommitTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
         HRESULT hr = pContextX->Map(pTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
 		if (FAILED(hr)) {
-			LOG_ERROR(logger, "Map hr=" << hr);
+			LOG_ERROR(logger, "Map hr d11 =" << hr);
 			return FALSE;
 		}
 		BYTE c = *(BYTE*)mappedTexture.pData;

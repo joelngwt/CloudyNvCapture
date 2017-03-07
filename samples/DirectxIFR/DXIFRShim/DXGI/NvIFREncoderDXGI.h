@@ -76,7 +76,7 @@ public:
 
 		if (!bKeyedMutex) {
 			CopyResource(pDeviceR, pSharedTextureR, pBackBufferR);
-			CommitUpdate(pDeviceR, pCommitTextureR, pSharedTextureR);
+			//CommitUpdate(pDeviceR, pCommitTextureR, pSharedTextureR);
 		} else {
 			IDXGIKeyedMutex *pDXGIKeyedMutex;
 			if (FAILED(pSharedTextureR->QueryInterface(_uuidof(IDXGIKeyedMutex), (void **)&pDXGIKeyedMutex))) {
