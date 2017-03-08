@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-<!-- Created by GNU Texinfo 5.2, http://www.gnu.org/software/texinfo/ -->
+<!-- Created by GNU Texinfo 6.1, http://www.gnu.org/software/texinfo/ -->
   <head>
     <meta charset="utf-8">
     <title>
@@ -55,7 +55,7 @@
 <a name="Synopsis"></a>
 <h2 class="chapter">1 Synopsis<span class="pull-right"><a class="anchor hidden-xs" href="#Synopsis" aria-hidden="true">#</a> <a class="anchor hidden-xs"href="#toc-Synopsis" aria-hidden="true">TOC</a></span></h2>
 
-<p>ffprobe [<var>options</var>] [<samp>input_file</samp>]
+<p>ffprobe [<var>options</var>] [<samp>input_url</samp>]
 </p>
 <a name="Description"></a>
 <h2 class="chapter">2 Description<span class="pull-right"><a class="anchor hidden-xs" href="#Description" aria-hidden="true">#</a> <a class="anchor hidden-xs"href="#toc-Description" aria-hidden="true">TOC</a></span></h2>
@@ -67,8 +67,8 @@ human- and machine-readable fashion.
 by a multimedia stream and the format and type of each media stream
 contained in it.
 </p>
-<p>If a filename is specified in input, ffprobe will try to open and
-probe the file content. If the file cannot be opened or recognized as
+<p>If a url is specified in input, ffprobe will try to open and
+probe the url content. If the url cannot be opened or recognized as
 a multimedia file, a positive exit code is returned.
 </p>
 <p>ffprobe may be employed both as a standalone application or in
@@ -222,6 +222,14 @@ for encoders, decoders, demuxers, muxers, filters, etc.
 </dd>
 <dt><samp>-formats</samp></dt>
 <dd><p>Show available formats (including devices).
+</p>
+</dd>
+<dt><samp>-demuxers</samp></dt>
+<dd><p>Show available demuxers.
+</p>
+</dd>
+<dt><samp>-muxers</samp></dt>
+<dd><p>Show available muxers.
 </p>
 </dd>
 <dt><samp>-devices</samp></dt>
@@ -841,8 +849,8 @@ with name &quot;PIXEL_FORMAT&quot;.
 on the specific build.
 </p>
 </dd>
-<dt><samp>-i <var>input_file</var></samp></dt>
-<dd><p>Read <var>input_file</var>.
+<dt><samp>-i <var>input_url</var></samp></dt>
+<dd><p>Read <var>input_url</var>.
 </p>
 </dd>
 </dl>

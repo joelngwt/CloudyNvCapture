@@ -54,7 +54,7 @@ HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
 // FFmpeg constants
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_FRAME_RATE 30 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS SWS_BICUBIC
 
@@ -155,7 +155,15 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 	AVRational framerate = { STREAM_FRAME_RATE, 1 };
 
 	c->codec_id = codec_id;
-	c->bit_rate = 400000;
+
+    // This is in bits. vbv-maxrate=4000
+    if (bufferHeight > 800) { // 1600x900, 1920x1080
+        c->bit_rate = 1500000; // 2 Mbps
+    }
+    else { // 1280x720, 1366x768
+        c->bit_rate = 750000; // 1 Mbps
+    }
+	c->bit_rate = 1000000; //vbv-maxrate=4000
 	/* Resolution must be a multiple of two. */
 	c->width = bufferWidth;
 	c->height = bufferHeight;
@@ -169,10 +177,10 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 	c->framerate = framerate;
 	c->has_b_frames = 0;
 	c->max_b_frames = 0;
-	c->rc_min_vbv_overflow_use = 400000;
-	c->thread_count = 1;
+	c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
+    c->refs = 1; // ref=1
 	
-	c->gop_size = 30; /* emit one intra frame every twelve frames at most */
+	c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
 	c->pix_fmt = STREAM_PIX_FMT;
 	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
 		/* just for testing, we also add B-frames */
@@ -185,9 +193,13 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 		c->mb_decision = 2;
 	}
 
+    // nvenc_h264 parameters
 	av_opt_set(c->priv_data, "preset", "llhp", 0);
+    av_opt_set(c->priv_data, "delay", "0", 0);
+
+    // CPU encoding paramaters (h264)
+    //av_opt_set(c->priv_data, "preset", "ultrafast", 0);
 	//av_opt_set(c->priv_data, "tune", "zerolatency", 0);
-	av_opt_set(c->priv_data, "delay", "0", 0);
 	//av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
 
 	/* Some formats want stream headers to be separate. */

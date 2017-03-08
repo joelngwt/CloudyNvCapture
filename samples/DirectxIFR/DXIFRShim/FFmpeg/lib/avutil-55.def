@@ -196,6 +196,7 @@ EXPORTS
     av_get_colorspace_name
     av_get_cpu_flags
     av_get_default_channel_layout
+    av_get_extended_channel_layout
     av_get_known_color_name
     av_get_media_type_string
     av_get_packed_sample_fmt
@@ -248,6 +249,7 @@ EXPORTS
     av_image_alloc
     av_image_check_sar
     av_image_check_size
+    av_image_check_size2
     av_image_copy
     av_image_copy_plane
     av_image_copy_to_buffer
@@ -260,6 +262,7 @@ EXPORTS
     av_int2i
     av_int_list_length_for_size
     av_lfg_init
+    av_lfg_init_from_data
     av_log
     av_log2
     av_log2_16bit
@@ -402,6 +405,7 @@ EXPORTS
     av_sha_update
     av_shr_i
     av_small_strptime
+    av_spherical_alloc
     av_stereo3d_alloc
     av_stereo3d_create_side_data
     av_stereo3d_from_name

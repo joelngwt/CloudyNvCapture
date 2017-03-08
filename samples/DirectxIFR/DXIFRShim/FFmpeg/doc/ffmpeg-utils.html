@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-<!-- Created by GNU Texinfo 5.2, http://www.gnu.org/software/texinfo/ -->
+<!-- Created by GNU Texinfo 6.1, http://www.gnu.org/software/texinfo/ -->
   <head>
     <meta charset="utf-8">
     <title>
@@ -1027,18 +1027,22 @@ following identifiers:
 
 </li><li> the name of a single channel (e.g. &lsquo;<samp>FL</samp>&rsquo;, &lsquo;<samp>FR</samp>&rsquo;, &lsquo;<samp>FC</samp>&rsquo;, &lsquo;<samp>LFE</samp>&rsquo;, etc.)
 
-</li><li> a number of channels, in decimal, optionally followed by &rsquo;c&rsquo;, yielding
-the default channel layout for that number of channels (see the
-function <code>av_get_default_channel_layout</code>)
+</li><li> a number of channels, in decimal, followed by &rsquo;c&rsquo;, yielding the default channel
+layout for that number of channels (see the function
+<code>av_get_default_channel_layout</code>). Note that not all channel counts have a
+default layout.
+
+</li><li> a number of channels, in decimal, followed by &rsquo;C&rsquo;, yielding an unknown channel
+layout with the specified number of channels. Note that not all channel layout
+specification strings support unknown channel layouts.
 
 </li><li> a channel layout mask, in hexadecimal starting with &quot;0x&quot; (see the
 <code>AV_CH_*</code> macros in <samp>libavutil/channel_layout.h</samp>.
 </li></ul>
 
-<p>Starting from libavutil version 53 the trailing character &quot;c&quot; to
-specify a number of channels will be required, while a channel layout
-mask could also be specified as a decimal number (if and only if not
-followed by &quot;c&quot;).
+<p>Before libavutil version 53 the trailing character &quot;c&quot; to specify a number of
+channels was optional, but now it is required, while a channel layout mask can
+also be specified as a decimal number (if and only if not followed by &quot;c&quot; or &quot;C&quot;).
 </p>
 <p>See also the function <code>av_get_channel_layout</code> defined in
 <samp>libavutil/channel_layout.h</samp>.
@@ -1079,6 +1083,10 @@ expression evaluates to the value of <var>expr2</var>.
 </dd>
 <dt><samp>atan(x)</samp></dt>
 <dd><p>Compute arctangent of <var>x</var>.
+</p>
+</dd>
+<dt><samp>atan2(x, y)</samp></dt>
+<dd><p>Compute principal value of the arc tangent of <var>y</var>/<var>x</var>.
 </p>
 </dd>
 <dt><samp>between(x, min, max)</samp></dt>
