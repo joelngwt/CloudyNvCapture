@@ -163,7 +163,6 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
     else { // 1280x720, 1366x768
         c->bit_rate = 750000; // 1 Mbps
     }
-	c->bit_rate = 1000000; //vbv-maxrate=4000
 	/* Resolution must be a multiple of two. */
 	c->width = bufferWidth;
 	c->height = bufferHeight;
@@ -177,7 +176,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 	c->framerate = framerate;
 	c->has_b_frames = 0;
 	c->max_b_frames = 0;
-	c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
+    c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
     c->refs = 1; // ref=1
 	
 	c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
