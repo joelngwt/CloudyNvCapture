@@ -158,7 +158,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 
     // This is in bits. vbv-maxrate=4000
     if (bufferHeight > 800) { // 1600x900, 1920x1080
-        c->bit_rate = 1500000; // 2 Mbps
+        c->bit_rate = 1250000; // 2 Mbps
     }
     else { // 1280x720, 1366x768
         c->bit_rate = 750000; // 1 Mbps
