@@ -61,7 +61,7 @@ uint8_t *bufferArray[MAX_PLAYERS];
 // Input and Output video size
 int bufferWidth;
 int bufferHeight;
-const int targetStreamFPS = 60;
+const int targetStreamFPS = 30;
 
 // Streaming IP address
 const std::string streamingIP = "http://137.132.82.195:";
@@ -125,10 +125,86 @@ static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_b
 	return av_interleaved_write_frame(fmt_ctx, pkt);
 }
 
+AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormatContext *oc, int bitrate)
+{
+    AVCodecContext *c;
+
+    c = avcodec_alloc_context3(*codec);
+    if (!c) {
+        LOG_WARN(logger, "Could not alloc an encoding context");
+        exit(1);
+    }
+    ost->enc = c;
+
+    AVRational time_base = { 1, STREAM_FRAME_RATE };
+    AVRational framerate = { STREAM_FRAME_RATE, 1 };
+
+    //c->codec_id = codec_id;
+
+    // This is in bits. vbv-maxrate=4000
+    if (bufferHeight > 800) { // 1600x900, 1920x1080
+        c->bit_rate = bitrate; // 2 Mbps
+    }
+    else { // 1280x720, 1366x768
+        c->bit_rate = bitrate * 0.75; // 2 Mbps
+    }
+    /* Resolution must be a multiple of two. */
+    c->width = bufferWidth;
+    c->height = bufferHeight;
+    /* timebase: This is the fundamental unit of time (in seconds) in terms
+    * of which frame timestamps are represented. For fixed-fps content,
+    * timebase should be 1/framerate and timestamp increments should be
+    * identical to 1. */
+    ost->st->time_base = time_base;
+    c->time_base = ost->st->time_base;
+    c->delay = 0;
+    c->framerate = framerate;
+    c->has_b_frames = 0;
+    c->max_b_frames = 0;
+    c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
+    c->refs = 1; // ref=1
+
+    c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
+    c->pix_fmt = STREAM_PIX_FMT;
+    if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+        /* just for testing, we also add B-frames */
+        c->max_b_frames = 0; // original: 2
+    }
+    if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+        /* Needed to avoid using macroblocks in which some coeffs overflow.
+        * This does not happen with normal video, it just happens here as
+        * the motion of the chroma plane does not match the luma plane. */
+        c->mb_decision = 2;
+    }
+
+    // nvenc_h264 parameters
+    av_opt_set(c->priv_data, "preset", "llhp", 0);
+    av_opt_set(c->priv_data, "delay", "0", 0);
+
+    // CPU encoding paramaters (h264)
+    //av_opt_set(c->priv_data, "preset", "ultrafast", 0);
+    //av_opt_set(c->priv_data, "tune", "zerolatency", 0);
+    //av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
+
+    /* Some formats want stream headers to be separate. */
+    if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
+        c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+    }
+
+    /* open the codec */
+    int ret = avcodec_open2(c, *codec, NULL);
+    if (ret < 0) {
+        LOG_WARN(logger, "Could not open video codec");
+        exit(1);
+    }
+
+    return c;
+}
+
 /* Add an output stream. */
 static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, enum AVCodecID codec_id)
 {
-	AVCodecContext *c;
+    AVCodecContext *c;
 
 	/* find the encoder */
 	//*codec = avcodec_find_encoder(codec_id);
@@ -144,67 +220,8 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 		exit(1);
 	}
 	ost->st->id = oc->nb_streams - 1;
-	c = avcodec_alloc_context3(*codec);
-	if (!c) {
-		LOG_WARN(logger, "Could not alloc an encoding context");
-		exit(1);
-	}
-	ost->enc = c;
 
-    AVRational time_base = { 1, STREAM_FRAME_RATE };
-	AVRational framerate = { STREAM_FRAME_RATE, 1 };
-
-	c->codec_id = codec_id;
-
-    // This is in bits. vbv-maxrate=4000
-    if (bufferHeight > 800) { // 1600x900, 1920x1080
-        c->bit_rate = 1250000; // 2 Mbps
-    }
-    else { // 1280x720, 1366x768
-        c->bit_rate = 750000; // 1 Mbps
-    }
-	/* Resolution must be a multiple of two. */
-	c->width = bufferWidth;
-	c->height = bufferHeight;
-	/* timebase: This is the fundamental unit of time (in seconds) in terms
-	* of which frame timestamps are represented. For fixed-fps content,
-	* timebase should be 1/framerate and timestamp increments should be
-	* identical to 1. */
-	ost->st->time_base = time_base;
-	c->time_base = ost->st->time_base;
-	c->delay = 0;
-	c->framerate = framerate;
-	c->has_b_frames = 0;
-	c->max_b_frames = 0;
-    c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
-    c->refs = 1; // ref=1
-	
-	c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
-	c->pix_fmt = STREAM_PIX_FMT;
-	if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-		/* just for testing, we also add B-frames */
-		c->max_b_frames = 0; // original: 2
-	}
-	if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-		/* Needed to avoid using macroblocks in which some coeffs overflow.
-		* This does not happen with normal video, it just happens here as
-		* the motion of the chroma plane does not match the luma plane. */
-		c->mb_decision = 2;
-	}
-
-    // nvenc_h264 parameters
-	av_opt_set(c->priv_data, "preset", "llhp", 0);
-    av_opt_set(c->priv_data, "delay", "0", 0);
-
-    // CPU encoding paramaters (h264)
-    //av_opt_set(c->priv_data, "preset", "ultrafast", 0);
-	//av_opt_set(c->priv_data, "tune", "zerolatency", 0);
-	//av_opt_set(c->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
-
-	/* Some formats want stream headers to be separate. */
-    if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
-        c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    }
+    c = setupAVCodecContext(codec, ost, oc, 1250000);
 }
 
 /**************************************************************/
@@ -233,21 +250,10 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	return picture;
 }
 
-static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
+static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 {
 	int ret;
 	AVCodecContext *c = ost->enc;
-	AVDictionary *opt = NULL;
-
-	av_dict_copy(&opt, opt_arg, 0);
-
-	/* open the codec */
-	ret = avcodec_open2(c, codec, &opt);
-	av_dict_free(&opt);
-	if (ret < 0) {
-		LOG_WARN(logger, "Could not open video codec");
-		exit(1);
-	}
 
 	/* allocate and init a re-usable frame */
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
@@ -276,53 +282,6 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-/* Converts uint8_t buffer to an AVFrame */
-static inline void fill_yuv_image(AVFrame *pict, uint8_t *buffer)
-{
-	pict->width = bufferWidth; // This has to be the original dimensions of the original frame buffer
-	pict->height = bufferHeight;
-	pict->format = AV_PIX_FMT_YUV420P; 
-
-    avpicture_fill((AVPicture*)pict, buffer, AV_PIX_FMT_YUV420P, pict->width, pict->height);
-}
-
-static inline AVFrame* get_video_frame(OutputStream *ost, uint8_t *buffer)
-{
-	AVCodecContext *c = ost->enc;
-
-	/* when we pass a frame to the encoder, it may keep a reference to it
-	* internally; make sure we do not overwrite it here */
-	if (av_frame_make_writable(ost->frame) < 0)
-		exit(1);
-
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		/* as we only generate a YUV420P picture, we must convert it
-		* to the codec pixel format if needed */
-		if (!ost->sws_ctx) {
-			ost->sws_ctx = sws_getContext(c->width, c->height,
-				AV_PIX_FMT_YUV420P,
-				c->width, c->height,
-				c->pix_fmt,
-				SCALE_FLAGS, NULL, NULL, NULL);
-			if (!ost->sws_ctx) {
-				LOG_WARN(logger, "Could not initialize the conversion context");
-				exit(1);
-			}
-		}
-        fill_yuv_image(ost->tmp_frame, buffer);
-		sws_scale(ost->sws_ctx,
-			(const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
-			0, c->height, ost->frame->data, ost->frame->linesize);
-	}
-	else {
-        fill_yuv_image(ost->frame, buffer);
-	}
-
-	ost->frame->pts = ost->next_pts++;
-
-	return ost->frame;
-}
-
 /*
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
@@ -337,7 +296,13 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 
 	c = ost->enc;
 
-	frame = get_video_frame(ost, buffer);
+    ost->frame->width = bufferWidth;
+    ost->frame->height = bufferHeight;
+    ost->frame->format = AV_PIX_FMT_YUV420P;
+
+    avpicture_fill((AVPicture*)ost->frame, buffer, AV_PIX_FMT_YUV420P, ost->frame->width, ost->frame->height);
+
+    frame = ost->frame;
 
 	av_init_packet(&pkt);
 
@@ -376,7 +341,6 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 void SetupFFMPEGServer(int playerIndex)
 {
-	const char *filename = NULL;
 	AVCodec *video_codec;
 
 	/* Initialize libavcodec, and register all codecs and formats. */
@@ -385,11 +349,7 @@ void SetupFFMPEGServer(int playerIndex)
 	avformat_network_init();
 
 	/* allocate the output media context */
-	avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, NULL, "output.h264");
-	if (!outCtxArray[playerIndex]) {
-		LOG_WARN(logger, "Could not deduce output format from file extension: using h264.");
-		avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", filename);
-	}
+	avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", "output.h264");
 	if (!outCtxArray[playerIndex]) {
 		LOG_WARN(logger, "No output context.");
 		return;
@@ -397,23 +357,23 @@ void SetupFFMPEGServer(int playerIndex)
 
 	fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
 
-	/* Add the audio and video streams using the default format codecs
+	/* Add the video streams using the default format codecs
 	* and initialize the codecs. */
 	if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
 		add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
 	}
 
-	if ((ret[playerIndex] = av_dict_set(&opt[playerIndex], "re", "", 0)) < 0) {
-		LOG_WARN(logger, "Failed to set -re mode.");
-		return;
-	}
-
 	/* Now that all the parameters are set, we can open the audio and
 	* video codecs and allocate the necessary encode buffers. */
-	open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex], opt[playerIndex]);
-	av_dump_format(outCtxArray[playerIndex], 0, filename, 1);
+    open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex]);
+	av_dump_format(outCtxArray[playerIndex], 0, NULL, 1);
 
 	AVDictionary *optionsOutput[MAX_PLAYERS] = {};
+    
+    if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "re", "", 0)) < 0) {
+        LOG_WARN(logger, "Failed to set -re mode.");
+        return;
+    }
 
 	if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
 		LOG_WARN(logger, "Failed to set listen mode for server.");
