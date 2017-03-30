@@ -78,6 +78,9 @@ LONGLONG g_llBegin1 = 0;
 LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
+double timeStarted;
+bool notYetSwitched = false;
+
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
 
@@ -296,6 +299,18 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 
 	c = ost->enc;
 
+    double currentTime = GetFloatingDate1();
+    if (notYetSwitched == false && currentTime - timeStarted > 20){
+        LOG_WARN(logger, "Switching AVCodecContext");
+
+        AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
+        avcodec_free_context(&c);
+        c = setupAVCodecContext(&codec, ost, oc, 250000);
+
+        LOG_WARN(logger, "AVCodecContext switched");
+        notYetSwitched = true;
+    }
+
     ost->frame->width = bufferWidth;
     ost->frame->height = bufferHeight;
     ost->frame->format = AV_PIX_FMT_YUV420P;
@@ -506,6 +521,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     SetEvent(hevtInitEncoderDone);
 
 	SetupFFMPEGServer(index);
+    timeStarted = GetFloatingDate1();
 
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
