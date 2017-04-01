@@ -48,38 +48,43 @@ extern "C"
 extern simplelogger::Logger *logger;
 
 // Nvidia GRID capture variables
-#define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
-#define MAX_PLAYERS 12
+#define NUMFRAMESINFLIGHT 1 // Limit is 3. Putting 4 causes an invalid parameter error to be thrown.
+#define MAX_PLAYERS 5
 HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
 // FFmpeg constants
 #define STREAM_FRAME_RATE 30 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
-#define SCALE_FLAGS SWS_BICUBIC
+
+// a wrapper around a single output AVStream
+typedef struct OutputStream {
+    AVStream *st;
+    AVCodecContext *enc;
+
+    AVFrame *frame;
+    AVFrame *tmp_frame;
+
+} OutputStream;
 
 // Input and Output video size
 int bufferWidth;
 int bufferHeight;
-const int targetStreamFPS = 30;
 
 // Streaming IP address
 const std::string streamingIP = "http://137.132.82.195:";
 const int firstPort = 30000;
 
 // Arrays used by FFmpeg
-AVFormatContext *outCtxArray[MAX_PLAYERS] = {};
-AVDictionary *optionsOutput[MAX_PLAYERS] = {};
-int ret[MAX_PLAYERS] = {};
-AVDictionary *opt[MAX_PLAYERS] = {};
-AVOutputFormat *fmt[MAX_PLAYERS] = {};
+AVFormatContext *ocArray[MAX_PLAYERS] = {};
+OutputStream ostArray[MAX_PLAYERS];
 
 LONGLONG g_llBegin1 = 0;
 LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
 double timeStarted;
-bool notYetSwitched = false;
+bool isContextSwitched = false;
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -97,26 +102,6 @@ double GetFloatingDate1()
     QPC(llNow);
     return(((double)(llNow - g_llBegin1) / (double)g_llPerfFrequency1));
 }
-
-// a wrapper around a single output AVStream
-typedef struct OutputStream {
-	AVStream *st;
-	AVCodecContext *enc;
-
-	/* pts of the next frame that will be generated */
-	int64_t next_pts;
-	int samples_count;
-
-	AVFrame *frame;
-	AVFrame *tmp_frame;
-
-	float t, tincr, tincr2;
-
-	struct SwsContext *sws_ctx;
-	struct SwrContext *swr_ctx;
-} OutputStream;
-
-OutputStream video_st[MAX_PLAYERS];
 
 static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
@@ -149,7 +134,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
         c->bit_rate = bitrate; // 2 Mbps
     }
     else { // 1280x720, 1366x768
-        c->bit_rate = bitrate * 0.75; // 2 Mbps
+        c->bit_rate = (int64_t)(bitrate * 0.75); // 2 Mbps
     }
     /* Resolution must be a multiple of two. */
     c->width = bufferWidth;
@@ -164,7 +149,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
     c->framerate = framerate;
     c->has_b_frames = 0;
     c->max_b_frames = 0;
-    c->rc_min_vbv_overflow_use = c->bit_rate / STREAM_FRAME_RATE;
+    c->rc_min_vbv_overflow_use = (float)(c->bit_rate / STREAM_FRAME_RATE);
     c->refs = 1; // ref=1
 
     c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
@@ -285,6 +270,23 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 	}
 }
 
+typedef struct ST {
+    AVCodec *codec;
+    OutputStream ost;
+    AVFormatContext oc;
+    int bitrate;
+}thestruct;
+
+thestruct st;
+
+void setupAVCodecContextProc(thestruct* args)
+{
+    LOG_WARN(logger, "In thread for setupAVCodecContextProc");
+
+    setupAVCodecContext(&args->codec, &args->ost, &args->oc, args->bitrate);
+    _endthread();
+}
+
 /*
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
@@ -292,28 +294,32 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
 {
 	int ret;
-	AVCodecContext *c;
 	AVFrame *frame;
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-	c = ost->enc;
-
-    double currentTime = GetFloatingDate1();
-    if (notYetSwitched == false && currentTime - timeStarted > 20){
-        LOG_WARN(logger, "Switching AVCodecContext");
-
-        AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
-        avcodec_free_context(&c);
-        c = setupAVCodecContext(&codec, ost, oc, 250000);
-
-        LOG_WARN(logger, "AVCodecContext switched");
-        notYetSwitched = true;
-    }
+    //double currentTime = GetFloatingDate1();
+    //if (isContextSwitched == false && currentTime - timeStarted > 16){
+    //    LOG_WARN(logger, "Switching AVCodecContext");
+    //
+    //    AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
+    //    avcodec_free_context(&ost->enc);
+    //
+    //    st.codec = codec;
+    //    st.bitrate = 250000;
+    //    st.ost = *ost;
+    //    st.oc = *oc;
+    //    (HANDLE)_beginthread((void(*)(void*))setupAVCodecContextProc, 0, (void*)&st);
+    //
+    //    ost->enc = setupAVCodecContext(&codec, ost, oc, 250000);
+    //
+    //    LOG_WARN(logger, "AVCodecContext switched");
+    //    isContextSwitched = true;
+    //}
 
     ost->frame->width = bufferWidth;
     ost->frame->height = bufferHeight;
-    ost->frame->format = AV_PIX_FMT_YUV420P;
+    ost->frame->format = STREAM_PIX_FMT;
 
     avpicture_fill((AVPicture*)ost->frame, buffer, AV_PIX_FMT_YUV420P, ost->frame->width, ost->frame->height);
 
@@ -322,14 +328,14 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	av_init_packet(&pkt);
 
 	/* encode the image */
-	ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+	ret = avcodec_encode_video2(ost->enc, &pkt, frame, &got_packet);
 	if (ret < 0) {
 		LOG_WARN(logger, "Error encoding video frame");
 		exit(1);
 	}
 
 	if (got_packet) {
-		ret = write_frame(oc, &c->time_base, ost->st, &pkt);
+		ret = write_frame(oc, &ost->enc->time_base, ost->st, &pkt);
 	}
 	else {
 		ret = 0;
@@ -350,13 +356,12 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	avcodec_free_context(&ost->enc);
 	av_frame_free(&ost->frame);
 	av_frame_free(&ost->tmp_frame);
-	sws_freeContext(ost->sws_ctx);
-	swr_free(&ost->swr_ctx);
 }
 
 void SetupFFMPEGServer(int playerIndex)
 {
 	AVCodec *video_codec;
+    int ret;
 
 	/* Initialize libavcodec, and register all codecs and formats. */
 	av_register_all();
@@ -364,38 +369,36 @@ void SetupFFMPEGServer(int playerIndex)
 	avformat_network_init();
 
 	/* allocate the output media context */
-	avformat_alloc_output_context2(&outCtxArray[playerIndex], NULL, "h264", "output.h264");
-	if (!outCtxArray[playerIndex]) {
+	avformat_alloc_output_context2(&ocArray[playerIndex], NULL, "h264", "output.h264");
+	if (!ocArray[playerIndex]) {
 		LOG_WARN(logger, "No output context.");
 		return;
 	}
 
-	fmt[playerIndex] = outCtxArray[playerIndex]->oformat;
-
 	/* Add the video streams using the default format codecs
 	* and initialize the codecs. */
-	if (fmt[playerIndex]->video_codec != AV_CODEC_ID_NONE) {
-		add_stream(&video_st[playerIndex], outCtxArray[playerIndex], &video_codec, fmt[playerIndex]->video_codec);
+    if (ocArray[playerIndex]->oformat->video_codec != AV_CODEC_ID_NONE) {
+		add_stream(&ostArray[playerIndex], ocArray[playerIndex], &video_codec, ocArray[playerIndex]->oformat->video_codec);
 	}
 
 	/* Now that all the parameters are set, we can open the audio and
 	* video codecs and allocate the necessary encode buffers. */
-    open_video(outCtxArray[playerIndex], video_codec, &video_st[playerIndex]);
-	av_dump_format(outCtxArray[playerIndex], 0, NULL, 1);
+    open_video(ocArray[playerIndex], video_codec, &ostArray[playerIndex]);
+	av_dump_format(ocArray[playerIndex], 0, NULL, 1);
 
 	AVDictionary *optionsOutput[MAX_PLAYERS] = {};
     
-    if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "re", "", 0)) < 0) {
+    if ((ret = av_dict_set(&optionsOutput[playerIndex], "re", "", 0)) < 0) {
         LOG_WARN(logger, "Failed to set -re mode.");
         return;
     }
 
-	if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
+	if ((ret = av_dict_set(&optionsOutput[playerIndex], "listen", "1", 0)) < 0) {
 		LOG_WARN(logger, "Failed to set listen mode for server.");
 		return;
 	}
 
-	if ((ret[playerIndex] = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
+	if ((ret = av_dict_set(&optionsOutput[playerIndex], "an", "", 0)) < 0) {
 		LOG_WARN(logger, "Failed to set -an mode.");
 		return;
 	}
@@ -404,18 +407,20 @@ void SetupFFMPEGServer(int playerIndex)
     *HTTPUrl << streamingIP << firstPort + playerIndex;
 
 	// Open server
-	if ((avio_open2(&outCtxArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-		LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
-		return;
-	}
-	LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
+    if (playerIndex == 0) {
+        if ((avio_open2(&ocArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
+            LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
+            return;
+        }
+        LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
 
-	/* Write the stream header, if any. */
-	ret[playerIndex] = avformat_write_header(outCtxArray[playerIndex], &opt[playerIndex]);
-	if (ret[playerIndex] < 0) {
-		LOG_ERROR(logger, "Error occurred when opening output file.\n");
-		return;
-	}
+        /* Write the stream header, if any. */
+        ret = avformat_write_header(ocArray[playerIndex], &optionsOutput[playerIndex]);
+        if (ret < 0) {
+            LOG_ERROR(logger, "Error occurred when opening output file.\n");
+            return;
+        }
+    }
 }
 
 void CleanupLibavCodec(int index)
@@ -424,18 +429,18 @@ void CleanupLibavCodec(int index)
 	* close the CodecContexts open when you wrote the header; otherwise
 	* av_write_trailer() may try to use memory that was freed on
 	* av_codec_close(). */
-	av_write_trailer(outCtxArray[index]);
+	av_write_trailer(ocArray[index]);
 
 	/* Close each codec. */
-	close_stream(outCtxArray[index], &video_st[index]);
+	close_stream(ocArray[index], &ostArray[index]);
 
-	if (!(fmt[index]->flags & AVFMT_NOFILE)) {
+	if (!(ocArray[index]->oformat->flags & AVFMT_NOFILE)) {
 		/* Close the output file. */
-		avio_closep(&outCtxArray[index]->pb);
+		avio_closep(&ocArray[index]->pb);
 	}
 
 	/* free the stream */
-	avformat_free_context(outCtxArray[index]);
+	avformat_free_context(ocArray[index]);
 }
 
 BOOL NvIFREncoder::StartEncoder(int index, int windowWidth, int windowHeight) 
@@ -521,7 +526,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
     SetEvent(hevtInitEncoderDone);
 
 	SetupFFMPEGServer(index);
-    timeStarted = GetFloatingDate1();
 
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
@@ -550,7 +554,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-			write_video_frame(outCtxArray[index], &video_st[index], bufferArray[index]);
+			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index]);
         }
         else
         {
@@ -561,7 +565,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
         //std::this_thread::sleep_for(std::chrono::milliseconds(33));
 
         // This sleeps the thread if we are producing frames faster than the desired framerate
-        int delta = (int)((dwTimeZero + ++uFrameCount * 1000 / targetStreamFPS) - timeGetTime());
+        int delta = (int)((dwTimeZero + ++uFrameCount * 1000 / STREAM_FRAME_RATE) - timeGetTime());
         if (delta > 0) {
             WaitForSingleObject(hevtStopEncoder, delta);
         }
