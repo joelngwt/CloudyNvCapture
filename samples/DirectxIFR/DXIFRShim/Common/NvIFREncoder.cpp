@@ -78,13 +78,15 @@ const int firstPort = 30000;
 // Arrays used by FFmpeg
 AVFormatContext *ocArray[MAX_PLAYERS] = {};
 OutputStream ostArray[MAX_PLAYERS];
+bool isCodecReady[MAX_PLAYERS] = { false };
+AVCodecContext *codecContextArray[MAX_PLAYERS] = {};
 
 LONGLONG g_llBegin1 = 0;
 LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
 double timeStarted;
-bool isContextSwitched = false;
+bool isContextSwitched[MAX_PLAYERS] = { false };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -275,15 +277,15 @@ typedef struct ST {
     OutputStream ost;
     AVFormatContext oc;
     int bitrate;
-}thestruct;
+    int playerIndex;
+}setupAVCodecStruct;
 
-thestruct st;
-
-void setupAVCodecContextProc(thestruct* args)
+void setupAVCodecContextProc(setupAVCodecStruct* args)
 {
-    LOG_WARN(logger, "In thread for setupAVCodecContextProc");
+    LOG_WARN(logger, "In thread for setupAVCodecContextProc index " << args->playerIndex);
 
-    setupAVCodecContext(&args->codec, &args->ost, &args->oc, args->bitrate);
+    codecContextArray[args->playerIndex] = setupAVCodecContext(&args->codec, &args->ost, &args->oc, args->bitrate);
+    isCodecReady[args->playerIndex] = true;
     _endthread();
 }
 
@@ -291,31 +293,36 @@ void setupAVCodecContextProc(thestruct* args)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer)
+static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index)
 {
 	int ret;
 	AVFrame *frame;
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    //double currentTime = GetFloatingDate1();
-    //if (isContextSwitched == false && currentTime - timeStarted > 16){
-    //    LOG_WARN(logger, "Switching AVCodecContext");
-    //
-    //    AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
-    //    avcodec_free_context(&ost->enc);
-    //
-    //    st.codec = codec;
-    //    st.bitrate = 250000;
-    //    st.ost = *ost;
-    //    st.oc = *oc;
-    //    (HANDLE)_beginthread((void(*)(void*))setupAVCodecContextProc, 0, (void*)&st);
-    //
-    //    ost->enc = setupAVCodecContext(&codec, ost, oc, 250000);
-    //
-    //    LOG_WARN(logger, "AVCodecContext switched");
-    //    isContextSwitched = true;
-    //}
+    double currentTime = GetFloatingDate1();
+    if (isContextSwitched[index] == false && currentTime - timeStarted > 16){
+        LOG_WARN(logger, "Switching AVCodecContext for index " << index);
+    
+        AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
+
+        setupAVCodecStruct st;
+        st.codec = codec;
+        st.bitrate = 250000;
+        st.ost = *ost;
+        st.oc = *oc;
+        st.playerIndex = index;
+        (HANDLE)_beginthread((void(*)(void*))setupAVCodecContextProc, 0, (void*)&st);
+   
+        isContextSwitched[index] = true;
+    }
+
+    if (isCodecReady[index] == true)
+    {
+        ost->enc = codecContextArray[index];
+        LOG_WARN(logger, "AVCodecContext swapped for index " << index);
+        isCodecReady[index] = false;
+    }
 
     ost->frame->width = bufferWidth;
     ost->frame->height = bufferHeight;
@@ -552,7 +559,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index]);
+			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index);
         }
         else
         {
