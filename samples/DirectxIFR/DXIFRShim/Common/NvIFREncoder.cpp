@@ -47,16 +47,6 @@ extern "C"
 
 extern simplelogger::Logger *logger;
 
-// Nvidia GRID capture variables
-#define NUMFRAMESINFLIGHT 1 // Limit is 3. Putting 4 causes an invalid parameter error to be thrown.
-#define MAX_PLAYERS 5
-HANDLE gpuEvent[MAX_PLAYERS];
-uint8_t *bufferArray[MAX_PLAYERS];
-
-// FFmpeg constants
-#define STREAM_FRAME_RATE 30 /* 25 images/s */
-#define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
-
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
     AVStream *st;
@@ -67,12 +57,22 @@ typedef struct OutputStream {
 
 } OutputStream;
 
+// Nvidia GRID capture variables
+#define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
+#define MAX_PLAYERS 5
+HANDLE gpuEvent[MAX_PLAYERS];
+uint8_t *bufferArray[MAX_PLAYERS];
+
+// FFmpeg constants
+#define STREAM_FRAME_RATE 30 /* 25 images/s */
+#define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
+
 // Input and Output video size
 int bufferWidth;
 int bufferHeight;
 
 // Streaming IP address
-const std::string streamingIP = "http://137.132.82.195:";
+const std::string streamingIP = "http://magam001.d1.comp.nus.edu.sg:";
 const int firstPort = 30000;
 
 // Arrays used by FFmpeg
@@ -328,14 +328,14 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	av_init_packet(&pkt);
 
 	/* encode the image */
-	ret = avcodec_encode_video2(ost->enc, &pkt, frame, &got_packet);
+    ret = avcodec_encode_video2(ost->enc, &pkt, frame, &got_packet);
 	if (ret < 0) {
 		LOG_WARN(logger, "Error encoding video frame");
 		exit(1);
 	}
 
 	if (got_packet) {
-		ret = write_frame(oc, &ost->enc->time_base, ost->st, &pkt);
+        ret = write_frame(oc, &ost->enc->time_base, ost->st, &pkt);
 	}
 	else {
 		ret = 0;
@@ -378,7 +378,7 @@ void SetupFFMPEGServer(int playerIndex)
 	/* Add the video streams using the default format codecs
 	* and initialize the codecs. */
     if (ocArray[playerIndex]->oformat->video_codec != AV_CODEC_ID_NONE) {
-		add_stream(&ostArray[playerIndex], ocArray[playerIndex], &video_codec, ocArray[playerIndex]->oformat->video_codec);
+        add_stream(&ostArray[playerIndex], ocArray[playerIndex], &video_codec, ocArray[playerIndex]->oformat->video_codec);
 	}
 
 	/* Now that all the parameters are set, we can open the audio and
@@ -407,20 +407,18 @@ void SetupFFMPEGServer(int playerIndex)
     *HTTPUrl << streamingIP << firstPort + playerIndex;
 
 	// Open server
-    if (playerIndex == 0) {
-        if ((avio_open2(&ocArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
-            LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
-            return;
-        }
-        LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
+	if ((avio_open2(&ocArray[playerIndex]->pb, HTTPUrl->str().c_str(), AVIO_FLAG_WRITE, NULL, &optionsOutput[playerIndex])) < 0) {
+		LOG_ERROR(logger, "Failed to open server " << playerIndex << ".");
+		return;
+	}
+	LOG_DEBUG(logger, "Server " << playerIndex << " opened at " << HTTPUrl->str());
 
-        /* Write the stream header, if any. */
-        ret = avformat_write_header(ocArray[playerIndex], &optionsOutput[playerIndex]);
-        if (ret < 0) {
-            LOG_ERROR(logger, "Error occurred when opening output file.\n");
-            return;
-        }
-    }
+	/* Write the stream header, if any. */
+    ret = avformat_write_header(ocArray[playerIndex], &optionsOutput[playerIndex]);
+	if (ret < 0) {
+		LOG_ERROR(logger, "Error occurred when opening output file.\n");
+		return;
+	}
 }
 
 void CleanupLibavCodec(int index)
@@ -434,7 +432,7 @@ void CleanupLibavCodec(int index)
 	/* Close each codec. */
 	close_stream(ocArray[index], &ostArray[index]);
 
-	if (!(ocArray[index]->oformat->flags & AVFMT_NOFILE)) {
+    if (!(ocArray[index]->oformat->flags & AVFMT_NOFILE)) {
 		/* Close the output file. */
 		avio_closep(&ocArray[index]->pb);
 	}
