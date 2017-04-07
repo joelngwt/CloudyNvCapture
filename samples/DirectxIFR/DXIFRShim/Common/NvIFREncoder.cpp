@@ -28,6 +28,7 @@
 #include <NvIFRLibrary.h>
 #include "NvIFREncoder.h"
 #include <thread>
+#include <atomic>
 
 extern "C"
 {
@@ -57,6 +58,14 @@ typedef struct OutputStream {
 
 } OutputStream;
 
+typedef struct ST {
+    AVCodec *codec;
+    OutputStream ost;
+    AVFormatContext oc;
+    int bitrate;
+    int playerIndex;
+} setupAVCodecStruct;
+
 // Nvidia GRID capture variables
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
 #define MAX_PLAYERS 5
@@ -66,6 +75,7 @@ uint8_t *bufferArray[MAX_PLAYERS];
 // FFmpeg constants
 #define STREAM_FRAME_RATE 30 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
+const char* encoderName = "nvenc_h264";
 
 // Input and Output video size
 int bufferWidth;
@@ -78,15 +88,17 @@ const int firstPort = 30000;
 // Arrays used by FFmpeg
 AVFormatContext *ocArray[MAX_PLAYERS] = {};
 OutputStream ostArray[MAX_PLAYERS];
-bool isCodecReady[MAX_PLAYERS] = { false };
-AVCodecContext *codecContextArray[MAX_PLAYERS] = {};
 
 LONGLONG g_llBegin1 = 0;
 LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
-double timeStarted;
-bool isContextSwitched[MAX_PLAYERS] = { false };
+// Bit rate switching variables
+std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false }; // to ensure only 1 thread is working to setup AVCodecContext at any point in time
+int oldInput[MAX_PLAYERS] = { 0 }; // to ensure that a new AVCodecContext is only set up if the player's input has changed
+std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
+AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
+setupAVCodecStruct st[MAX_PLAYERS];
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -131,12 +143,12 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
 
     //c->codec_id = codec_id;
 
-    // This is in bits. vbv-maxrate=4000
+    // This is in bits
     if (bufferHeight > 800) { // 1600x900, 1920x1080
-        c->bit_rate = bitrate; // 2 Mbps
+      c->bit_rate = bitrate;
     }
     else { // 1280x720, 1366x768
-        c->bit_rate = (int64_t)(bitrate * 0.75); // 2 Mbps
+        c->bit_rate = (int64_t)(bitrate * 0.75);
     }
     /* Resolution must be a multiple of two. */
     c->width = bufferWidth;
@@ -198,7 +210,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 
 	/* find the encoder */
 	//*codec = avcodec_find_encoder(codec_id);
-	*codec = avcodec_find_encoder_by_name("nvenc_h264");
+    *codec = avcodec_find_encoder_by_name(encoderName);
 	if (!(*codec)) {
 		LOG_WARN(logger, "Could not find encoder for" << avcodec_get_name(codec_id));
 		exit(1);
@@ -272,20 +284,12 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 	}
 }
 
-typedef struct ST {
-    AVCodec *codec;
-    OutputStream ost;
-    AVFormatContext oc;
-    int bitrate;
-    int playerIndex;
-}setupAVCodecStruct;
-
-void setupAVCodecContextProc(setupAVCodecStruct* args)
+void setupAVCodecContextProc(void* args)
 {
-    LOG_WARN(logger, "In thread for setupAVCodecContextProc index " << args->playerIndex);
+    int index = (int)args;
+    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&st[index].codec, &st[index].ost, &st[index].oc, st[index].bitrate);
+    isThreadComplete[st[index].playerIndex] = true;
 
-    codecContextArray[args->playerIndex] = setupAVCodecContext(&args->codec, &args->ost, &args->oc, args->bitrate);
-    isCodecReady[args->playerIndex] = true;
     _endthread();
 }
 
@@ -293,37 +297,45 @@ void setupAVCodecContextProc(setupAVCodecStruct* args)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index)
+static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index, int input)
 {
 	int ret;
 	AVFrame *frame;
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    double currentTime = GetFloatingDate1();
-    if (isContextSwitched[index] == false && currentTime - timeStarted > 16){
-        LOG_WARN(logger, "Switching AVCodecContext for index " << index);
+    if (input != oldInput[index] && isThreadStarted[index] == false) {
+        oldInput[index] = input;
+
+        st[index].codec = avcodec_find_encoder_by_name(encoderName);
+        
+        if (input == 1) { // mouse movement
+            st[index].bitrate = 1500000;
+        }
+        else if (input == 2) { // keyboard input and mouse buttons
+            st[index].bitrate = 1000000;
+        }
+        else if (input == 0) { // no input
+            st[index].bitrate = 750000;
+        }
+        st[index].ost = *ost;
+        st[index].oc = *oc;
+        st[index].playerIndex = index;
+        _beginthread(&setupAVCodecContextProc, 0, (void*)index);
+
+        isThreadStarted[index] = true;
+    }
     
-        AVCodec *codec = avcodec_find_encoder_by_name("nvenc_h264");
-
-        setupAVCodecStruct st;
-        st.codec = codec;
-        st.bitrate = 250000;
-        st.ost = *ost;
-        st.oc = *oc;
-        st.playerIndex = index;
-        (HANDLE)_beginthread((void(*)(void*))setupAVCodecContextProc, 0, (void*)&st);
-   
-        isContextSwitched[index] = true;
-    }
-
-    if (isCodecReady[index] == true)
+    // Only swap in the new AVCodecContext when the thread is done
+    if (isThreadComplete[index] == true)
     {
+        avcodec_close(ost->enc);
         ost->enc = codecContextArray[index];
-        LOG_WARN(logger, "AVCodecContext swapped for index " << index);
-        isCodecReady[index] = false;
+        
+        isThreadStarted[index] = false; // Ready to let thread start again if necessary
+        isThreadComplete[index] = false; // Ready to let thread start again if necessary
     }
-
+    
     ost->frame->width = bufferWidth;
     ost->frame->height = bufferHeight;
     ost->frame->format = STREAM_PIX_FMT;
@@ -530,13 +542,87 @@ void NvIFREncoder::EncoderThreadProc(int index)
     bInitEncoderSuccessful = TRUE;
     SetEvent(hevtInitEncoderDone);
 
+    //HANDLE hPipe;
+    //LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\playerInputPipe");
+    //char chBuf[1];
+    //DWORD cbRead;
+    //BOOL callNamedPipeSuccess = FALSE;
+    //LPTSTR lpvMessage = TEXT("Default message from server.");
+    //
+    //hPipe = CreateFile(lpszPipename,   // pipe name 
+    //                   GENERIC_READ,   // read access 
+    //                   0,              // no sharing 
+    //                   NULL,           // default security attributes
+    //                   OPEN_EXISTING,  // opens existing pipe 
+    //                   0,              // default attributes 
+    //                   NULL);          // no template file 
+    //
+    //if (hPipe != INVALID_HANDLE_VALUE)
+    //{
+    //    LOG_DEBUG(logger, "Create pipe failed");
+    //}
+    //else
+    //{
+    //    LOG_DEBUG(logger, "Create pipe success");
+    //}
+   
 	SetupFFMPEGServer(index);
 
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
 
+    char c = '0';
+    std::streampos fileSize = 0;
+    int prevFileSize = 0;
+
     while (!bStopEncoder)
     {
+        ifstream fin;
+        ostringstream oss;
+        oss << "G:\\Packaged Games\\414 Debug 1-2 MultiFiles\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+        fin.open(oss.str());
+        if (fin.is_open()) 
+        {
+            fin.seekg(-3, ios::end); // -1 and -2 gets \n on the last line
+            fileSize = fin.tellg();
+            fin.get(c);
+            fin.close();
+
+            if ((int)fileSize == prevFileSize)
+            {
+                c = '0';
+            }
+
+            prevFileSize = fileSize;
+        }
+
+        //do
+        //{
+        //    callNamedPipeSuccess = ReadFile(hPipe,    // pipe handle 
+        //                                    chBuf,    // buffer to receive reply 
+        //                                    sizeof(chBuf),  // size of buffer 
+        //                                    &cbRead,  // number of bytes read (For ReadFile())
+        //                                    NULL);    // not overlapped 
+
+        //    callNamedPipeSuccess = CallNamedPipe(lpszPipename,
+        //                                         NULL,
+        //                                         NULL,
+        //                                         chBuf,
+        //                                         (lstrlen(lpvMessage) + 1)*sizeof(TCHAR),
+        //                                         &cbRead,
+        //                                         NMPWAIT_NOWAIT);
+
+        //    if (!callNamedPipeSuccess && GetLastError() != ERROR_MORE_DATA)
+        //    {
+        //        LOG_DEBUG(logger, "Read from pipe failed: " << GetLastError());
+        //        break;
+        //    }
+        //    if (callNamedPipeSuccess)
+        //    {
+        //            LOG_DEBUG(logger, "Read from pipe: " << chBuf);
+        //    }
+        //} while (!callNamedPipeSuccess);
+
         if (!UpdateBackBuffer())
         {
             LOG_DEBUG(logger, "UpdateBackBuffer() failed");
@@ -559,7 +645,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index);
+			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index, c - '0');
         }
         else
         {
