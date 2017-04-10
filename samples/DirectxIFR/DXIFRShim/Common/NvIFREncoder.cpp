@@ -29,6 +29,7 @@
 #include "NvIFREncoder.h"
 #include <thread>
 #include <atomic>
+#include <ctime>
 
 extern "C"
 {
@@ -68,7 +69,7 @@ typedef struct ST {
 
 // Nvidia GRID capture variables
 #define NUMFRAMESINFLIGHT 1 // Limit is 3? Putting 4 causes an invalid parameter error to be thrown.
-#define MAX_PLAYERS 5
+#define MAX_PLAYERS 4
 HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
@@ -99,6 +100,9 @@ int oldInput[MAX_PLAYERS] = { 0 }; // to ensure that a new AVCodecContext is onl
 std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
+const int totalBandwidthAvailable = 6000000; // 1.5 Mbps * 4 players
+int sumWeight = 0;
+
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -309,14 +313,17 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 
         st[index].codec = avcodec_find_encoder_by_name(encoderName);
         
-        if (input == 1) { // mouse movement
+        if (input == 3) { // shooting
+            LOG_WARN(logger, "Input level 3");
+            st[index].bitrate = 500000;
+        }
+        else if (input == 2) { // mouse movement or any other keyboard key
+            LOG_WARN(logger, "Input level 2");
             st[index].bitrate = 1500000;
-        }
-        else if (input == 2) { // keyboard input and mouse buttons
-            st[index].bitrate = 1000000;
-        }
-        else if (input == 0) { // no input
-            st[index].bitrate = 750000;
+        }        
+        else if (input == 1) { // no input
+            LOG_WARN(logger, "Input level 1");
+            st[index].bitrate = 250000;
         }
         st[index].ost = *ost;
         st[index].oc = *oc;
@@ -364,6 +371,7 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	if (ret < 0) {
 		// This happens when the thin client is closed. This will close the game.
 		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
+        //exit(1);
 		_endthread();
 	}
 
@@ -541,45 +549,25 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
     bInitEncoderSuccessful = TRUE;
     SetEvent(hevtInitEncoderDone);
-
-    //HANDLE hPipe;
-    //LPTSTR lpszPipename = TEXT("\\\\.\\pipe\\playerInputPipe");
-    //char chBuf[1];
-    //DWORD cbRead;
-    //BOOL callNamedPipeSuccess = FALSE;
-    //LPTSTR lpvMessage = TEXT("Default message from server.");
-    //
-    //hPipe = CreateFile(lpszPipename,   // pipe name 
-    //                   GENERIC_READ,   // read access 
-    //                   0,              // no sharing 
-    //                   NULL,           // default security attributes
-    //                   OPEN_EXISTING,  // opens existing pipe 
-    //                   0,              // default attributes 
-    //                   NULL);          // no template file 
-    //
-    //if (hPipe != INVALID_HANDLE_VALUE)
-    //{
-    //    LOG_DEBUG(logger, "Create pipe failed");
-    //}
-    //else
-    //{
-    //    LOG_DEBUG(logger, "Create pipe success");
-    //}
    
 	SetupFFMPEGServer(index);
 
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
 
-    char c = '0';
+    char c = '1';
     std::streampos fileSize = 0;
     int prevFileSize = 0;
+    int timeBeforeIdle = 3;
+    bool isIdling = false;
+    time_t shootingStartTime= std::time(0);
+    time_t idleStartTime = 0;
 
     while (!bStopEncoder)
     {
         ifstream fin;
         ostringstream oss;
-        oss << "G:\\Packaged Games\\414 Debug 1-2 MultiFiles\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+        oss << "G:\\Packaged Games\\414 Debug 1-2-3\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
         fin.open(oss.str());
         if (fin.is_open()) 
         {
@@ -588,40 +576,43 @@ void NvIFREncoder::EncoderThreadProc(int index)
             fin.get(c);
             fin.close();
 
+            // No input from player - is idling
             if ((int)fileSize == prevFileSize)
             {
-                c = '0';
+                if (isIdling == false)
+                {
+                    // Start the countdown
+                    idleStartTime = std::time(0);
+                    isIdling = true;
+                }
+                else if ((std::time(0) - idleStartTime) >= timeBeforeIdle)
+                {
+                    c = '1';
+                }
             }
-
+            // If there is mouse button input (i.e. shooting),
+            // we start the timer so that we can check if 3 seconds
+            // has elapsed
+            else if (c == '3')
+            {
+                shootingStartTime = std::time(0);
+                isIdling = false; // There is input. Allow countdown to restart
+            }
+            // Once shooting stops, we check if 3 seconds have passed. 
+            // If it has not, the bit rate should be maintained at "shooting level".
+            else if (c == '2' && (std::time(0) - shootingStartTime) < timeBeforeIdle)
+            {
+                // "Shooting level"
+                c = '3'; // Not yet more than 3 seconds after shooting. Maintain the bit rate.
+                isIdling = false; // There is input. Allow countdown to restart
+            }
+            else if (c == '2' && (std::time(0) - shootingStartTime) >= timeBeforeIdle)
+            {
+                // c = 2. No change to c.
+                isIdling = false; // There is input. Allow countdown to restart
+            }
             prevFileSize = fileSize;
         }
-
-        //do
-        //{
-        //    callNamedPipeSuccess = ReadFile(hPipe,    // pipe handle 
-        //                                    chBuf,    // buffer to receive reply 
-        //                                    sizeof(chBuf),  // size of buffer 
-        //                                    &cbRead,  // number of bytes read (For ReadFile())
-        //                                    NULL);    // not overlapped 
-
-        //    callNamedPipeSuccess = CallNamedPipe(lpszPipename,
-        //                                         NULL,
-        //                                         NULL,
-        //                                         chBuf,
-        //                                         (lstrlen(lpvMessage) + 1)*sizeof(TCHAR),
-        //                                         &cbRead,
-        //                                         NMPWAIT_NOWAIT);
-
-        //    if (!callNamedPipeSuccess && GetLastError() != ERROR_MORE_DATA)
-        //    {
-        //        LOG_DEBUG(logger, "Read from pipe failed: " << GetLastError());
-        //        break;
-        //    }
-        //    if (callNamedPipeSuccess)
-        //    {
-        //            LOG_DEBUG(logger, "Read from pipe: " << chBuf);
-        //    }
-        //} while (!callNamedPipeSuccess);
 
         if (!UpdateBackBuffer())
         {
