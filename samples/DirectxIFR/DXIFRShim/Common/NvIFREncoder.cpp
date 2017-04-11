@@ -309,20 +309,15 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	AVPacket pkt = { 0 };
 
     if (input != oldInput[index] && isThreadStarted[index] == false) {
-        oldInput[index] = input;
-
         st[index].codec = avcodec_find_encoder_by_name(encoderName);
         
         if (input == 3) { // shooting
-            LOG_WARN(logger, "Input level 3");
-            st[index].bitrate = 500000;
+            st[index].bitrate = 250000;
         }
         else if (input == 2) { // mouse movement or any other keyboard key
-            LOG_WARN(logger, "Input level 2");
             st[index].bitrate = 1500000;
         }        
         else if (input == 1) { // no input
-            LOG_WARN(logger, "Input level 1");
             st[index].bitrate = 250000;
         }
         st[index].ost = *ost;
@@ -330,6 +325,7 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
         st[index].playerIndex = index;
         _beginthread(&setupAVCodecContextProc, 0, (void*)index);
 
+        oldInput[index] = input;
         isThreadStarted[index] = true;
     }
     
@@ -371,7 +367,7 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	if (ret < 0) {
 		// This happens when the thin client is closed. This will close the game.
 		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
-        //exit(1);
+        exit(1);
 		_endthread();
 	}
 
@@ -555,7 +551,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
 
-    char c = '1';
+    char c = '0';
     std::streampos fileSize = 0;
     int prevFileSize = 0;
     int timeBeforeIdle = 3;
@@ -576,8 +572,13 @@ void NvIFREncoder::EncoderThreadProc(int index)
             fin.get(c);
             fin.close();
 
+            // We cannot let any other movement e.g. "c = 2" through if we have recently shot
+            if ((std::time(0) - shootingStartTime) < timeBeforeIdle)
+            {
+                c = '3';
+            }
             // No input from player - is idling
-            if ((int)fileSize == prevFileSize)
+            else if ((int)fileSize == prevFileSize)
             {
                 if (isIdling == false)
                 {
@@ -585,6 +586,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
                     idleStartTime = std::time(0);
                     isIdling = true;
                 }
+                // We have idled for more than 3 seconds
                 else if ((std::time(0) - idleStartTime) >= timeBeforeIdle)
                 {
                     c = '1';
@@ -598,19 +600,12 @@ void NvIFREncoder::EncoderThreadProc(int index)
                 shootingStartTime = std::time(0);
                 isIdling = false; // There is input. Allow countdown to restart
             }
-            // Once shooting stops, we check if 3 seconds have passed. 
-            // If it has not, the bit rate should be maintained at "shooting level".
-            else if (c == '2' && (std::time(0) - shootingStartTime) < timeBeforeIdle)
+            // Keyboard and mouse movement input
+            else if (c == '2')
             {
-                // "Shooting level"
-                c = '3'; // Not yet more than 3 seconds after shooting. Maintain the bit rate.
                 isIdling = false; // There is input. Allow countdown to restart
             }
-            else if (c == '2' && (std::time(0) - shootingStartTime) >= timeBeforeIdle)
-            {
-                // c = 2. No change to c.
-                isIdling = false; // There is input. Allow countdown to restart
-            }
+            
             prevFileSize = fileSize;
         }
 
