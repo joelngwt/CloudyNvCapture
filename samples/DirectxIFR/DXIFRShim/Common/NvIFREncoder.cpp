@@ -82,7 +82,7 @@ const char* encoderName = "nvenc_h264";
 int bufferWidth;
 int bufferHeight;
 
-// Streaming IP address
+// Host IP address
 const std::string streamingIP = "http://magam001.d1.comp.nus.edu.sg:";
 const int firstPort = 30000;
 
@@ -100,9 +100,10 @@ int oldInput[MAX_PLAYERS] = { 0 }; // to ensure that a new AVCodecContext is onl
 std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
-const int totalBandwidthAvailable = 6000000; // 1.5 Mbps * 4 players
+const int totalBandwidthAvailable = 1500000 * MAX_PLAYERS;
 int sumWeight = 0;
-
+int playerInputArray[MAX_PLAYERS] = { 0 };
+int oldSumWeight[MAX_PLAYERS] = { 0 };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -301,31 +302,37 @@ void setupAVCodecContextProc(void* args)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index, int input)
+static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index)
 {
 	int ret;
 	AVFrame *frame;
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    if (input != oldInput[index] && isThreadStarted[index] == false) {
+    if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
         st[index].codec = avcodec_find_encoder_by_name(encoderName);
-        
-        if (input == 3) { // shooting
-            st[index].bitrate = 250000;
-        }
-        else if (input == 2) { // mouse movement or any other keyboard key
-            st[index].bitrate = 1500000;
-        }        
-        else if (input == 1) { // no input
-            st[index].bitrate = 250000;
-        }
+
+        //if (playerInputArray[index] == 3) { // shooting
+        //    st[index].bitrate = 500000;
+        //}
+        //else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+        //    st[index].bitrate = 1500000;
+        //}        
+        //else if (playerInputArray[index] == 1) { // no input
+        //    st[index].bitrate = 250000;
+        //}
+
+        float weight = (float)playerInputArray[index] / (float)sumWeight;
+        st[index].bitrate = weight * totalBandwidthAvailable;
+        //LOG_WARN(logger, "Bit rate used for player " << index << " = " << st[index].bitrate << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
+
         st[index].ost = *ost;
         st[index].oc = *oc;
         st[index].playerIndex = index;
         _beginthread(&setupAVCodecContextProc, 0, (void*)index);
 
-        oldInput[index] = input;
+        oldInput[index] = playerInputArray[index];
+        oldSumWeight[index] = sumWeight;
         isThreadStarted[index] = true;
     }
     
@@ -367,7 +374,7 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 	if (ret < 0) {
 		// This happens when the thin client is closed. This will close the game.
 		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
-        exit(1);
+        //exit(1);
 		_endthread();
 	}
 
@@ -553,17 +560,18 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
     char c = '0';
     std::streampos fileSize = 0;
-    int prevFileSize = 0;
+    std::streampos prevFileSize = 0;
     int timeBeforeIdle = 3;
     bool isIdling = false;
     time_t shootingStartTime= std::time(0);
     time_t idleStartTime = 0;
 
+    ostringstream oss;
+    oss << "G:\\Packaged Games\\414 Shipping 1-2-3\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+    ifstream fin;
+
     while (!bStopEncoder)
     {
-        ifstream fin;
-        ostringstream oss;
-        oss << "G:\\Packaged Games\\414 Debug 1-2-3\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
         fin.open(oss.str());
         if (fin.is_open()) 
         {
@@ -578,7 +586,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
                 c = '3';
             }
             // No input from player - is idling
-            else if ((int)fileSize == prevFileSize)
+            else if (fileSize == prevFileSize)
             {
                 if (isIdling == false)
                 {
@@ -607,6 +615,20 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             
             prevFileSize = fileSize;
+
+            playerInputArray[index] = (c - '0');
+        }
+
+        // Index 0 will do the summing of the array.
+        // This will pose problems in the future if player 0 can 
+        // just leave while the other players are playing.
+        if (index == 0)
+        {
+            sumWeight = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++)
+            {
+                sumWeight += playerInputArray[i];
+            }
         }
 
         if (!UpdateBackBuffer())
@@ -631,7 +653,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index, c - '0');
+			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index);
         }
         else
         {
