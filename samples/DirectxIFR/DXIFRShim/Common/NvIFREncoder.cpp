@@ -100,7 +100,8 @@ int oldInput[MAX_PLAYERS] = { 0 }; // to ensure that a new AVCodecContext is onl
 std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
-const int totalBandwidthAvailable = 1500000 * MAX_PLAYERS;
+const int bandwidthPerPlayer = 1500000;
+int totalBandwidthAvailable = 0;
 int sumWeight = 0;
 int playerInputArray[MAX_PLAYERS] = { 0 };
 int oldSumWeight[MAX_PLAYERS] = { 0 };
@@ -375,6 +376,7 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 		// This happens when the thin client is closed. This will close the game.
 		LOG_WARN(logger, "Error while writing video frame. Thin client was probably closed.");
         //exit(1);
+        totalBandwidthAvailable -= bandwidthPerPlayer;
 		_endthread();
 	}
 
@@ -491,6 +493,7 @@ BOOL NvIFREncoder::StartEncoder(int index, int windowWidth, int windowHeight)
 	bInitEncoderSuccessful = FALSE;
 
 	indexToUse = index;
+    totalBandwidthAvailable += bandwidthPerPlayer;
 	hthEncoder = (HANDLE)_beginthread(EncoderThreadStartProc, 0, this);
 
 	if (!hthEncoder) {
