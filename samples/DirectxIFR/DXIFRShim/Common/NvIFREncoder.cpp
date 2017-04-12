@@ -570,7 +570,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     time_t idleStartTime = 0;
 
     ostringstream oss;
-    oss << "G:\\Packaged Games\\414 Shipping 1-2-3\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+    oss << "G:\\Packaged Games\\414 Shipping 1-2-3 Limited 2\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
     ifstream fin;
 
     while (!bStopEncoder)
@@ -582,6 +582,12 @@ void NvIFREncoder::EncoderThreadProc(int index)
             fileSize = fin.tellg();
             fin.get(c);
             fin.close();
+
+            // If we shoot, we should refresh the shooting start time
+            if (c == '3' && fileSize != prevFileSize)
+            {
+                shootingStartTime = std::time(0);
+            }
 
             // We cannot let any other movement e.g. "c = 2" through if we have recently shot
             if ((std::time(0) - shootingStartTime) < timeBeforeIdle)
@@ -603,18 +609,10 @@ void NvIFREncoder::EncoderThreadProc(int index)
                     c = '1';
                 }
             }
-            // If there is mouse button input (i.e. shooting),
-            // we start the timer so that we can check if 3 seconds
-            // has elapsed
-            else if (c == '3')
+            // If there is input, allow countdown to restart
+            else if (c == '3' || c == '2')
             {
-                shootingStartTime = std::time(0);
-                isIdling = false; // There is input. Allow countdown to restart
-            }
-            // Keyboard and mouse movement input
-            else if (c == '2')
-            {
-                isIdling = false; // There is input. Allow countdown to restart
+                isIdling = false; // There is input. 
             }
             
             prevFileSize = fileSize;
