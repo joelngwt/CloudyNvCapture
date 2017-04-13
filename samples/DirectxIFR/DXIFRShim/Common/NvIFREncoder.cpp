@@ -93,8 +93,8 @@ LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
 // Bit rate switching variables
-std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false }; // to ensure only 1 thread is working to setup AVCodecContext at any point in time
-std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
+std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false, false, false, false }; // to ensure only 1 thread is working to setup AVCodecContext at any point in time
+std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false, false, false, false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
 const int bandwidthPerPlayer = 1500000;
@@ -103,6 +103,7 @@ int sumWeight = 0;
 int playerInputArray[MAX_PLAYERS] = { 0 };
 int oldSumWeight[MAX_PLAYERS] = { 0 };
 int contextToUse[MAX_PLAYERS] = { 0 };
+int freeContextComplete[MAX_PLAYERS] = { true, true, true, true };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -306,6 +307,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, int index)
 void avcodec_free_context_proc(void* args)
 {
     int index = (int)args;
+
     if (contextToUse[index] == 1)
     {
         avcodec_free_context(&ostArray[index].enc0);
@@ -316,6 +318,7 @@ void avcodec_free_context_proc(void* args)
         avcodec_free_context(&ostArray[index].enc1);
         LOG_WARN(logger, "Player " << index << ", enc1 freed");
     }
+    freeContextComplete[index] = true;
     _endthread();
 }
 
@@ -326,26 +329,19 @@ void setupAVCodecContextProc(void* args)
     int bitrate = (int)(weight * totalBandwidthAvailable);
     AVCodec* codec = avcodec_find_encoder_by_name(encoderName);
 
-    if (playerInputArray[index] == 3) { // shooting
-        bitrate = 500000;
-    }
-    else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
-        bitrate = 1500000;
-    }
-    else if (playerInputArray[index] == 1) { // no input
-        bitrate = 250000;
-    }
+    //if (playerInputArray[index] == 3) { // shooting
+    //    bitrate = 500000;
+    //}
+    //else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+    //    bitrate = 1500000;
+    //}
+    //else if (playerInputArray[index] == 1) { // no input
+    //    bitrate = 250000;
+    //}
 
-    // Free the context before setting up a new one, or a memory leak will occur
-    if (contextToUse[index] == 1)
+    while (freeContextComplete[index] == false)
     {
-        avcodec_free_context(&ostArray[index].enc0);
-        LOG_WARN(logger, "Player " << index << ", enc0 freed");
-    }
-    else
-    {
-        avcodec_free_context(&ostArray[index].enc1);
-        LOG_WARN(logger, "Player " << index << ", enc1 freed");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     // This will set up context for the other ost->enc (the one currently not in use)
@@ -367,7 +363,7 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 
     if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
         LOG_WARN(logger, "===============");
-        LOG_WARN(logger, "Context used for player " << index << " = " << contextToUse[index] << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
+        LOG_WARN(logger, "Context currently in use for player " << index << ": " << contextToUse[index] << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
 
         st[index].oc = *oc;
         st[index].playerIndex = index;
@@ -386,19 +382,19 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
         {
             ostArray[index].enc1 = codecContextArray[index];
             LOG_WARN(logger, "Player " << index << ", Using context 1");
-            contextToUse[index] = 1 - contextToUse[index]; // ost->enc1 is ready to be used
-            //avcodec_free_context(&ostArray[index].enc0);
-            //_beginthread(&avcodec_free_context_proc, 0, (void*)index);
+            
         }
         // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
         else
         {
             ostArray[index].enc0 = codecContextArray[index];
             LOG_WARN(logger, "Player " << index << ", Using context 0");
-            contextToUse[index] = 1 - contextToUse[index]; // ost->enc0 is ready to be used
-            //avcodec_free_context(&ostArray[index].enc1);
-            //_beginthread(&avcodec_free_context_proc, 0, (void*)index);
         }
+
+        contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
+
+        freeContextComplete[index] = false;
+        _beginthread(&avcodec_free_context_proc, 0, (void*)index);
        
         isThreadStarted[index] = false; // Ready to let thread start again if necessary
         isThreadComplete[index] = false; // Ready to let thread start again if necessary
