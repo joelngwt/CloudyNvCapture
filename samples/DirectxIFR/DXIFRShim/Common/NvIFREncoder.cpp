@@ -52,7 +52,8 @@ extern simplelogger::Logger *logger;
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
     AVStream *st;
-    AVCodecContext *enc;
+    AVCodecContext *enc0;
+    AVCodecContext *enc1;
 
     AVFrame *frame;
     AVFrame *tmp_frame;
@@ -60,10 +61,7 @@ typedef struct OutputStream {
 } OutputStream;
 
 typedef struct ST {
-    AVCodec *codec;
-    OutputStream ost;
     AVFormatContext oc;
-    int bitrate;
     int playerIndex;
 } setupAVCodecStruct;
 
@@ -96,7 +94,6 @@ BOOL g_timeInitialized1 = FALSE;
 
 // Bit rate switching variables
 std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false }; // to ensure only 1 thread is working to setup AVCodecContext at any point in time
-int oldInput[MAX_PLAYERS] = { 0 }; // to ensure that a new AVCodecContext is only set up if the player's input has changed
 std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
@@ -105,6 +102,7 @@ int totalBandwidthAvailable = 0;
 int sumWeight = 0;
 int playerInputArray[MAX_PLAYERS] = { 0 };
 int oldSumWeight[MAX_PLAYERS] = { 0 };
+int contextToUse[MAX_PLAYERS] = { 0 };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -133,7 +131,7 @@ static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_b
 	return av_interleaved_write_frame(fmt_ctx, pkt);
 }
 
-AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormatContext *oc, int bitrate)
+AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bitrate, int contextToUse, int index)
 {
     AVCodecContext *c;
 
@@ -142,7 +140,14 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
         LOG_WARN(logger, "Could not alloc an encoding context");
         exit(1);
     }
-    ost->enc = c;
+    if (contextToUse == 0)
+    {
+        ostArray[index].enc0 = c;
+    }
+    else
+    {
+        ostArray[index].enc1 = c;
+    }    
 
     AVRational time_base = { 1, STREAM_FRAME_RATE };
     AVRational framerate = { STREAM_FRAME_RATE, 1 };
@@ -163,8 +168,8 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
     * of which frame timestamps are represented. For fixed-fps content,
     * timebase should be 1/framerate and timestamp increments should be
     * identical to 1. */
-    ost->st->time_base = time_base;
-    c->time_base = ost->st->time_base;
+    ostArray[index].st->time_base = time_base;
+    c->time_base = ostArray[index].st->time_base;
     c->delay = 0;
     c->framerate = framerate;
     c->has_b_frames = 0;
@@ -185,7 +190,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
         c->mb_decision = 2;
     }
 
-    // nvenc_h264 parameters
+    // GPU nvenc_h264 parameters
     av_opt_set(c->priv_data, "preset", "llhp", 0);
     av_opt_set(c->priv_data, "delay", "0", 0);
 
@@ -210,7 +215,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, OutputStream *ost, AVFormat
 }
 
 /* Add an output stream. */
-static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, enum AVCodecID codec_id)
+static void add_stream(AVFormatContext *oc, AVCodec **codec, enum AVCodecID codec_id, int index)
 {
     AVCodecContext *c;
 
@@ -222,14 +227,14 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc, AVCodec **codec, 
 		exit(1);
 	}
 
-	ost->st = avformat_new_stream(oc, NULL);
-	if (!ost->st) {
+    ostArray[index].st = avformat_new_stream(oc, NULL);
+    if (!ostArray[index].st) {
 		LOG_WARN(logger, "Could not allocate stream");
 		exit(1);
 	}
-	ost->st->id = oc->nb_streams - 1;
+    ostArray[index].st->id = oc->nb_streams - 1;
 
-    c = setupAVCodecContext(codec, ost, oc, 1250000);
+    c = setupAVCodecContext(codec, oc, 1250000, contextToUse[index], index);
 }
 
 /**************************************************************/
@@ -258,14 +263,22 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	return picture;
 }
 
-static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
+static void open_video(AVFormatContext *oc, AVCodec *codec, int index)
 {
 	int ret;
-	AVCodecContext *c = ost->enc;
+    AVCodecContext *c;
+    if (contextToUse[index] == 0)
+    {
+        c = ostArray[index].enc0;
+    }
+    else
+    {
+        c = ostArray[index].enc1;
+    }
 
 	/* allocate and init a re-usable frame */
-	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
-	if (!ost->frame) {
+    ostArray[index].frame = alloc_picture(c->pix_fmt, c->width, c->height);
+    if (!ostArray[index].frame) {
 		LOG_WARN(logger, "Could not allocate video frame");
 		exit(1);
 	}
@@ -273,29 +286,72 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost)
 	/* If the output format is not YUV420P, then a temporary YUV420P
 	* picture is needed too. It is then converted to the required
 	* output format. */
-	ost->tmp_frame = NULL;
+    ostArray[index].tmp_frame = NULL;
 	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
-		if (!ost->tmp_frame) {
+        ostArray[index].tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
+        if (!ostArray[index].tmp_frame) {
 			LOG_WARN(logger, "Could not allocate temporary picture");
 			exit(1);
 		}
 	}
 
 	/* copy the stream parameters to the muxer */
-	ret = avcodec_parameters_from_context(ost->st->codecpar, c);
+    ret = avcodec_parameters_from_context(ostArray[index].st->codecpar, c);
 	if (ret < 0) {
 		LOG_WARN(logger, "Could not copy the stream parameters");
 		exit(1);
 	}
 }
 
+void avcodec_free_context_proc(void* args)
+{
+    int index = (int)args;
+    if (contextToUse[index] == 1)
+    {
+        avcodec_free_context(&ostArray[index].enc0);
+        LOG_WARN(logger, "Player " << index << ", enc0 freed");
+    }
+    else
+    {
+        avcodec_free_context(&ostArray[index].enc1);
+        LOG_WARN(logger, "Player " << index << ", enc1 freed");
+    }
+    _endthread();
+}
+
 void setupAVCodecContextProc(void* args)
 {
     int index = (int)args;
-    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&st[index].codec, &st[index].ost, &st[index].oc, st[index].bitrate);
-    isThreadComplete[st[index].playerIndex] = true;
+    float weight = (float)playerInputArray[index] / (float)sumWeight;
+    int bitrate = (int)(weight * totalBandwidthAvailable);
+    AVCodec* codec = avcodec_find_encoder_by_name(encoderName);
 
+    if (playerInputArray[index] == 3) { // shooting
+        bitrate = 500000;
+    }
+    else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+        bitrate = 1500000;
+    }
+    else if (playerInputArray[index] == 1) { // no input
+        bitrate = 250000;
+    }
+
+    // Free the context before setting up a new one, or a memory leak will occur
+    if (contextToUse[index] == 1)
+    {
+        avcodec_free_context(&ostArray[index].enc0);
+        LOG_WARN(logger, "Player " << index << ", enc0 freed");
+    }
+    else
+    {
+        avcodec_free_context(&ostArray[index].enc1);
+        LOG_WARN(logger, "Player " << index << ", enc1 freed");
+    }
+
+    // This will set up context for the other ost->enc (the one currently not in use)
+    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codec, &st[index].oc, bitrate, 1 - contextToUse[index], index); 
+   
+    isThreadComplete[st[index].playerIndex] = true;
     _endthread();
 }
 
@@ -303,36 +359,21 @@ void setupAVCodecContextProc(void* args)
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
 */
-static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint8_t *buffer, int index)
+static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int index)
 {
 	int ret;
-	AVFrame *frame;
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
     if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
-        st[index].codec = avcodec_find_encoder_by_name(encoderName);
+        LOG_WARN(logger, "===============");
+        LOG_WARN(logger, "Context used for player " << index << " = " << contextToUse[index] << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
 
-        //if (playerInputArray[index] == 3) { // shooting
-        //    st[index].bitrate = 500000;
-        //}
-        //else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
-        //    st[index].bitrate = 1500000;
-        //}        
-        //else if (playerInputArray[index] == 1) { // no input
-        //    st[index].bitrate = 250000;
-        //}
-
-        float weight = (float)playerInputArray[index] / (float)sumWeight;
-        st[index].bitrate = weight * totalBandwidthAvailable;
-        //LOG_WARN(logger, "Bit rate used for player " << index << " = " << st[index].bitrate << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
-
-        st[index].ost = *ost;
         st[index].oc = *oc;
         st[index].playerIndex = index;
+        
         _beginthread(&setupAVCodecContextProc, 0, (void*)index);
 
-        oldInput[index] = playerInputArray[index];
         oldSumWeight[index] = sumWeight;
         isThreadStarted[index] = true;
     }
@@ -340,32 +381,60 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
     // Only swap in the new AVCodecContext when the thread is done
     if (isThreadComplete[index] == true)
     {
-        avcodec_close(ost->enc);
-        ost->enc = codecContextArray[index];
-        
+        // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
+        if (contextToUse[index] == 0)
+        {
+            ostArray[index].enc1 = codecContextArray[index];
+            LOG_WARN(logger, "Player " << index << ", Using context 1");
+            contextToUse[index] = 1 - contextToUse[index]; // ost->enc1 is ready to be used
+            //avcodec_free_context(&ostArray[index].enc0);
+            //_beginthread(&avcodec_free_context_proc, 0, (void*)index);
+        }
+        // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
+        else
+        {
+            ostArray[index].enc0 = codecContextArray[index];
+            LOG_WARN(logger, "Player " << index << ", Using context 0");
+            contextToUse[index] = 1 - contextToUse[index]; // ost->enc0 is ready to be used
+            //avcodec_free_context(&ostArray[index].enc1);
+            //_beginthread(&avcodec_free_context_proc, 0, (void*)index);
+        }
+       
         isThreadStarted[index] = false; // Ready to let thread start again if necessary
         isThreadComplete[index] = false; // Ready to let thread start again if necessary
     }
     
-    ost->frame->width = bufferWidth;
-    ost->frame->height = bufferHeight;
-    ost->frame->format = STREAM_PIX_FMT;
+    ostArray[index].frame->width = bufferWidth;
+    ostArray[index].frame->height = bufferHeight;
+    ostArray[index].frame->format = STREAM_PIX_FMT;
 
-    avpicture_fill((AVPicture*)ost->frame, buffer, AV_PIX_FMT_YUV420P, ost->frame->width, ost->frame->height);
-
-    frame = ost->frame;
+    avpicture_fill((AVPicture*)ostArray[index].frame, buffer, AV_PIX_FMT_YUV420P, ostArray[index].frame->width, ostArray[index].frame->height);
 
 	av_init_packet(&pkt);
 
 	/* encode the image */
-    ret = avcodec_encode_video2(ost->enc, &pkt, frame, &got_packet);
+    if (contextToUse[index] == 0)
+    {
+        ret = avcodec_encode_video2(ostArray[index].enc0, &pkt, ostArray[index].frame, &got_packet);
+    }
+    else
+    {
+        ret = avcodec_encode_video2(ostArray[index].enc1, &pkt, ostArray[index].frame, &got_packet);
+    }
 	if (ret < 0) {
 		LOG_WARN(logger, "Error encoding video frame");
 		exit(1);
 	}
 
 	if (got_packet) {
-        ret = write_frame(oc, &ost->enc->time_base, ost->st, &pkt);
+        if (contextToUse[index] == 0)
+        {
+            ret = write_frame(oc, &ostArray[index].enc0->time_base, ostArray[index].st, &pkt);
+        }
+        else
+        {
+            ret = write_frame(oc, &ostArray[index].enc1->time_base, ostArray[index].st, &pkt);
+        }
 	}
 	else {
 		ret = 0;
@@ -380,14 +449,15 @@ static inline int write_video_frame(AVFormatContext *oc, OutputStream *ost, uint
 		_endthread();
 	}
 
-	return (frame || got_packet) ? 0 : 1;
+    return (ostArray[index].frame || got_packet) ? 0 : 1;
 }
 
-static void close_stream(AVFormatContext *oc, OutputStream *ost)
+static void close_stream(int index)
 {
-	avcodec_free_context(&ost->enc);
-	av_frame_free(&ost->frame);
-	av_frame_free(&ost->tmp_frame);
+	avcodec_free_context(&ostArray[index].enc0);
+    avcodec_free_context(&ostArray[index].enc1);
+    av_frame_free(&ostArray[index].frame);
+    av_frame_free(&ostArray[index].tmp_frame);
 }
 
 void SetupFFMPEGServer(int playerIndex)
@@ -410,12 +480,12 @@ void SetupFFMPEGServer(int playerIndex)
 	/* Add the video streams using the default format codecs
 	* and initialize the codecs. */
     if (ocArray[playerIndex]->oformat->video_codec != AV_CODEC_ID_NONE) {
-        add_stream(&ostArray[playerIndex], ocArray[playerIndex], &video_codec, ocArray[playerIndex]->oformat->video_codec);
+        add_stream(ocArray[playerIndex], &video_codec, ocArray[playerIndex]->oformat->video_codec, playerIndex);
 	}
 
 	/* Now that all the parameters are set, we can open the audio and
 	* video codecs and allocate the necessary encode buffers. */
-    open_video(ocArray[playerIndex], video_codec, &ostArray[playerIndex]);
+    open_video(ocArray[playerIndex], video_codec, playerIndex);
 	av_dump_format(ocArray[playerIndex], 0, NULL, 1);
 
 	AVDictionary *optionsOutput[MAX_PLAYERS] = {};
@@ -462,7 +532,7 @@ void CleanupLibavCodec(int index)
 	av_write_trailer(ocArray[index]);
 
 	/* Close each codec. */
-	close_stream(ocArray[index], &ostArray[index]);
+	close_stream(index);
 
     if (!(ocArray[index]->oformat->flags & AVFMT_NOFILE)) {
 		/* Close the output file. */
@@ -619,6 +689,10 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
             playerInputArray[index] = (c - '0');
         }
+        else
+        {
+            LOG_ERROR(logger, "Failed to open file " << index);
+        }
 
         // Index 0 will do the summing of the array.
         // This will pose problems in the future if player 0 can 
@@ -654,7 +728,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-			write_video_frame(ocArray[index], &ostArray[index], bufferArray[index], index);
+			write_video_frame(ocArray[index], /*&ostArray[index], */bufferArray[index], index);
         }
         else
         {
