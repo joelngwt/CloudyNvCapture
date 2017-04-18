@@ -104,6 +104,7 @@ int playerInputArray[MAX_PLAYERS] = { 0 };
 int oldSumWeight[MAX_PLAYERS] = { 0 };
 int contextToUse[MAX_PLAYERS] = { 0 };
 int freeContextComplete[MAX_PLAYERS] = { true, true, true, true };
+AVCodec* codecSetup;
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -153,15 +154,8 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
     AVRational time_base = { 1, STREAM_FRAME_RATE };
     AVRational framerate = { STREAM_FRAME_RATE, 1 };
 
-    //c->codec_id = codec_id;
-
     // This is in bits
-    if (bufferHeight > 800) { // 1600x900, 1920x1080
-      c->bit_rate = bitrate;
-    }
-    else { // 1280x720, 1366x768
-        c->bit_rate = (int64_t)(bitrate * 0.75);
-    }
+    c->bit_rate = bitrate;
     /* Resolution must be a multiple of two. */
     c->width = bufferWidth;
     c->height = bufferHeight;
@@ -180,16 +174,6 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
 
     c->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
     c->pix_fmt = STREAM_PIX_FMT;
-    if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-        /* just for testing, we also add B-frames */
-        c->max_b_frames = 0; // original: 2
-    }
-    if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-        /* Needed to avoid using macroblocks in which some coeffs overflow.
-        * This does not happen with normal video, it just happens here as
-        * the motion of the chroma plane does not match the luma plane. */
-        c->mb_decision = 2;
-    }
 
     // GPU nvenc_h264 parameters
     av_opt_set(c->priv_data, "preset", "llhp", 0);
@@ -327,8 +311,7 @@ void setupAVCodecContextProc(void* args)
     int index = (int)args;
     float weight = (float)playerInputArray[index] / (float)sumWeight;
     int bitrate = (int)(weight * totalBandwidthAvailable);
-    AVCodec* codec = avcodec_find_encoder_by_name(encoderName);
-
+    
     //if (playerInputArray[index] == 3) { // shooting
     //    bitrate = 500000;
     //}
@@ -645,6 +628,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     bool isIdling = false;
     time_t shootingStartTime= std::time(0);
     time_t idleStartTime = 0;
+    codecSetup = avcodec_find_encoder_by_name(encoderName);
 
     ostringstream oss;
     oss << "G:\\Packaged Games\\414 Shipping 1-2-3 Limited 2\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
