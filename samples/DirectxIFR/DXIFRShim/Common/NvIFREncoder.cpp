@@ -368,7 +368,13 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
         st[index].oc = *oc;
         st[index].playerIndex = index;
         
-        _beginthread(&setupAVCodecContextProc, 0, (void*)index);
+        HANDLE setupThread = (HANDLE)_beginthread(&setupAVCodecContextProc, 0, (void*)index);
+        BOOL success = SetThreadPriority(setupThread, THREAD_PRIORITY_HIGHEST);
+
+        if (success == FALSE)
+        {
+            LOG_WARN(logger, "Set priority of setupThread failed!");
+        }
 
         oldSumWeight[index] = sumWeight;
         isThreadStarted[index] = true;
@@ -394,7 +400,12 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
         contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
 
         freeContextComplete[index] = false;
-        _beginthread(&avcodec_free_context_proc, 0, (void*)index);
+        HANDLE closingThread = (HANDLE)_beginthread(&avcodec_free_context_proc, 0, (void*)index);
+        BOOL success = SetThreadPriority(closingThread, THREAD_PRIORITY_HIGHEST);
+        if (success == FALSE)
+        {
+            LOG_WARN(logger, "Set priority of closingThread failed!");
+        }
        
         isThreadStarted[index] = false; // Ready to let thread start again if necessary
         isThreadComplete[index] = false; // Ready to let thread start again if necessary
