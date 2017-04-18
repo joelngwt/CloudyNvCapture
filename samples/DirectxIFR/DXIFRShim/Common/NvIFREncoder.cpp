@@ -328,7 +328,7 @@ void setupAVCodecContextProc(void* args)
     }
 
     // This will set up context for the other ost->enc (the one currently not in use)
-    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codec, &st[index].oc, bitrate, 1 - contextToUse[index], index); 
+    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codecSetup, &st[index].oc, bitrate, 1 - contextToUse[index], index); 
    
     isThreadComplete[st[index].playerIndex] = true;
     _endthread();
