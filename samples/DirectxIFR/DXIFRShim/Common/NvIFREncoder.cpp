@@ -105,6 +105,7 @@ int oldSumWeight[MAX_PLAYERS] = { 0 };
 int contextToUse[MAX_PLAYERS] = { 0 };
 int freeContextComplete[MAX_PLAYERS] = { true, true, true, true };
 AVCodec* codecSetup;
+int oldInput[MAX_PLAYERS] = { 0 };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -353,18 +354,18 @@ void avcodec_free_context_proc(void* args)
 void setupAVCodecContextProc(void* args)
 {
     int index = (int)args;
-    float weight = (float)playerInputArray[index] / (float)sumWeight;
-    int bitrate = (int)(weight * totalBandwidthAvailable);
+    //float weight = (float)playerInputArray[index] / (float)sumWeight;
+    int bitrate;// = (int)(weight * totalBandwidthAvailable);
     
-    //if (playerInputArray[index] == 3) { // shooting
-    //    bitrate = 500000;
-    //}
-    //else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
-    //    bitrate = 1500000;
-    //}
-    //else if (playerInputArray[index] == 1) { // no input
-    //    bitrate = 250000;
-    //}
+    if (playerInputArray[index] == 3) { // shooting
+        bitrate = 1500000;
+    }
+    else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+        bitrate = 1200000;
+    }
+    else if (playerInputArray[index] == 1) { // no input
+        bitrate = 700000;
+    }
 
     while (freeContextComplete[index] == false)
     {
@@ -388,7 +389,7 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
+    if (playerInputArray[index] != oldInput[index] && isThreadStarted[index] == false) {
         st[index].oc = *oc;
         st[index].playerIndex = index;
         
@@ -400,7 +401,7 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
             LOG_WARN(logger, "Set priority of setupThread failed!");
         }
 
-        oldSumWeight[index] = sumWeight;
+        oldInput[index] = playerInputArray[index];
         isThreadStarted[index] = true;
     }
     
