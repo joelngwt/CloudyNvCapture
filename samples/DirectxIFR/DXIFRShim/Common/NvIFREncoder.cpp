@@ -407,7 +407,7 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    if (sumWeight != oldSumWeight[index]) {
+    if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
         st[index].oc = *oc;
         st[index].playerIndex = index;
         
@@ -417,22 +417,31 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
         // This will set up context for the other ost->enc (the one currently not in use)
         codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codecSetup, &st[index].oc, bitrate, 1 - contextToUse[index], index);
 
-        oldSumWeight[index] = sumWeight;
-    }
-    // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
-    if (contextToUse[index] == 0)
-    {
-        ostArray[index].enc1 = codecContextArray[index];
-            
-    }
-    // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
-    else
-    {
-        ostArray[index].enc0 = codecContextArray[index];
-    }
+        LOG_WARN(logger, "Player = " << index << " input = " << playerInputArray[index] << " bitrate = " << bitrate);
+        //LOG_WARN(logger, "Context to use = " << contextToUse[index]);
 
-    contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
-    
+        oldSumWeight[index] = sumWeight;
+        isThreadStarted[index] = true;
+        isThreadComplete[index] = true;
+    }
+    if (isThreadComplete[index] == true)
+    {
+        // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
+        if (contextToUse[index] == 0)
+        {
+            ostArray[index].enc1 = codecContextArray[index];
+
+        }
+        // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
+        else
+        {
+            ostArray[index].enc0 = codecContextArray[index];
+        }
+        isThreadStarted[index] = false; // Ready to let thread start again if necessary
+        isThreadComplete[index] = false; // Ready to let thread start again if necessary
+
+        contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
+    }
     ostArray[index].frame->width = bufferWidth;
     ostArray[index].frame->height = bufferHeight;
     ostArray[index].frame->format = STREAM_PIX_FMT;
