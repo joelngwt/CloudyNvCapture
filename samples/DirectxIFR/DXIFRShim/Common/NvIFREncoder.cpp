@@ -149,13 +149,11 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
     {
         if (contextToUse == 0)
         {
-            ostArray[index].enc0->width = bufferWidth;
-            ostArray[index].enc0->height = bufferHeight;
+            ostArray[index].enc0->bit_rate = bitrate;
         }
         else
         {
-            ostArray[index].enc1->width = bufferWidth;
-            ostArray[index].enc1->height = bufferHeight;
+            ostArray[index].enc1->bit_rate = bitrate;
         }
 
     }
