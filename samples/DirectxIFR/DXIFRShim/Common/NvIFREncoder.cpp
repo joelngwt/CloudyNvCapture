@@ -106,6 +106,8 @@ int contextToUse[MAX_PLAYERS] = { 0 };
 int freeContextComplete[MAX_PLAYERS] = { true, true, true, true };
 AVCodec* codecSetup;
 
+int firstRun[MAX_PLAYERS] = { 0 };
+
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
 
@@ -135,17 +137,37 @@ static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_b
 
 AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bitrate, int contextToUse, int index)
 {
-    AVRational time_base = { 1, STREAM_FRAME_RATE };
-    AVRational framerate = { STREAM_FRAME_RATE, 1 };
-    
-    if (contextToUse == 0)
+    if (firstRun[index] == 1)
     {
+        if (contextToUse == 0)
+        {
+            ostArray[index].enc0->width = bufferWidth;
+            ostArray[index].enc0->height = bufferHeight;
+        }
+        else
+        {
+            ostArray[index].enc1->width = bufferWidth;
+            ostArray[index].enc1->height = bufferHeight;
+        }
+
+    }
+    else
+    {
+        firstRun[index] = 1;
         ostArray[index].enc0 = avcodec_alloc_context3(*codec);
         if (!ostArray[index].enc0) {
             LOG_WARN(logger, "Could not alloc an encoding context");
             exit(1);
         }
-        
+        ostArray[index].enc1 = avcodec_alloc_context3(*codec);
+        if (!ostArray[index].enc1) {
+            LOG_WARN(logger, "Could not alloc an encoding context");
+            exit(1);
+        }
+
+        AVRational time_base = { 1, STREAM_FRAME_RATE };
+        AVRational framerate = { STREAM_FRAME_RATE, 1 };
+
         // This is in bits
         ostArray[index].enc0->bit_rate = bitrate;
         /* Resolution must be a multiple of two. */
@@ -166,7 +188,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
 
         ostArray[index].enc0->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
         ostArray[index].enc0->pix_fmt = STREAM_PIX_FMT;
-        
+
         // GPU nvenc_h264 parameters
         av_opt_set(ostArray[index].enc0->priv_data, "preset", "llhp", 0);
         av_opt_set(ostArray[index].enc0->priv_data, "delay", "0", 0);
@@ -175,7 +197,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
         //av_opt_set(ostArray[index].enc0->priv_data, "preset", "ultrafast", 0);
         //av_opt_set(ostArray[index].enc0->priv_data, "tune", "zerolatency", 0);
         //av_opt_set(ostArray[index].enc0->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
-        
+
         /* Some formats want stream headers to be separate. */
         if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
             ostArray[index].enc0->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -188,17 +210,8 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
             exit(1);
         }
 
-        return ostArray[index].enc0;
-    }
+        // =========
 
-    else if (contextToUse == 1)
-    {
-        ostArray[index].enc1 = avcodec_alloc_context3(*codec); // 0.00011456
-        if (!ostArray[index].enc1) {
-            LOG_WARN(logger, "Could not alloc an encoding context");
-            exit(1);
-        }
-        
         // This is in bits
         ostArray[index].enc1->bit_rate = bitrate;
         /* Resolution must be a multiple of two. */
@@ -219,7 +232,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
 
         ostArray[index].enc1->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
         ostArray[index].enc1->pix_fmt = STREAM_PIX_FMT;
-        
+
         // GPU nvenc_h264 parameters
         av_opt_set(ostArray[index].enc1->priv_data, "preset", "llhp", 0);
         av_opt_set(ostArray[index].enc1->priv_data, "delay", "0", 0);
@@ -235,12 +248,18 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
         }
 
         /* open the codec */
-        int ret = avcodec_open2(ostArray[index].enc1, *codec, NULL);
+        ret = avcodec_open2(ostArray[index].enc1, *codec, NULL);
         if (ret < 0) {
             LOG_WARN(logger, "Could not open video codec");
             exit(1);
         }
-
+    }
+    if (contextToUse == 0)
+    {
+        return ostArray[index].enc0;
+    }
+    else
+    {
         return ostArray[index].enc1;
     }
 }
@@ -388,50 +407,31 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 	int got_packet = 0;
 	AVPacket pkt = { 0 };
 
-    if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
+    if (sumWeight != oldSumWeight[index]) {
         st[index].oc = *oc;
         st[index].playerIndex = index;
         
-        HANDLE setupThread = (HANDLE)_beginthread(&setupAVCodecContextProc, 0, (void*)index);
-        BOOL success = SetThreadPriority(setupThread, THREAD_PRIORITY_HIGHEST);
+        float weight = (float)playerInputArray[index] / (float)sumWeight;
+        int bitrate = (int)(weight * totalBandwidthAvailable);
 
-        if (success == FALSE)
-        {
-            LOG_WARN(logger, "Set priority of setupThread failed!");
-        }
+        // This will set up context for the other ost->enc (the one currently not in use)
+        codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codecSetup, &st[index].oc, bitrate, 1 - contextToUse[index], index);
 
         oldSumWeight[index] = sumWeight;
-        isThreadStarted[index] = true;
     }
-    
-    // Only swap in the new AVCodecContext when the thread is done
-    if (isThreadComplete[index] == true)
+    // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
+    if (contextToUse[index] == 0)
     {
-        // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
-        if (contextToUse[index] == 0)
-        {
-            ostArray[index].enc1 = codecContextArray[index];
+        ostArray[index].enc1 = codecContextArray[index];
             
-        }
-        // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
-        else
-        {
-            ostArray[index].enc0 = codecContextArray[index];
-        }
-
-        contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
-
-        freeContextComplete[index] = false;
-        HANDLE closingThread = (HANDLE)_beginthread(&avcodec_free_context_proc, 0, (void*)index);
-        BOOL success = SetThreadPriority(closingThread, THREAD_PRIORITY_HIGHEST);
-        if (success == FALSE)
-        {
-            LOG_WARN(logger, "Set priority of closingThread failed!");
-        }
-       
-        isThreadStarted[index] = false; // Ready to let thread start again if necessary
-        isThreadComplete[index] = false; // Ready to let thread start again if necessary
     }
+    // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
+    else
+    {
+        ostArray[index].enc0 = codecContextArray[index];
+    }
+
+    contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
     
     ostArray[index].frame->width = bufferWidth;
     ostArray[index].frame->height = bufferHeight;
