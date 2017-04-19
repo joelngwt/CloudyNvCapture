@@ -137,6 +137,14 @@ static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_b
 
 AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bitrate, int contextToUse, int index)
 {
+    //AVCodecContext *c;
+
+    //c = avcodec_alloc_context3(*codec);
+    //if (!c) {
+    //    LOG_WARN(logger, "Could not alloc an encoding context");
+    //    exit(1);
+    //}
+
     if (firstRun[index] == 1)
     {
         if (contextToUse == 0)
@@ -262,6 +270,7 @@ AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bi
     {
         return ostArray[index].enc1;
     }
+
 }
 
 /* Add an output stream. */
@@ -360,10 +369,12 @@ void avcodec_free_context_proc(void* args)
     if (contextToUse[index] == 1)
     {
         avcodec_free_context(&ostArray[index].enc0);
+        LOG_WARN(logger, "Player " << index << ", enc0 freed");
     }
     else
     {
         avcodec_free_context(&ostArray[index].enc1);
+        LOG_WARN(logger, "Player " << index << ", enc1 freed");
     }
     freeContextComplete[index] = true;
     _endthread();
@@ -408,40 +419,55 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 	AVPacket pkt = { 0 };
 
     if (sumWeight != oldSumWeight[index] && isThreadStarted[index] == false) {
+        LOG_WARN(logger, "===============");
+        LOG_WARN(logger, "Context currently in use for player " << index << ": " << contextToUse[index] << ", weight = [" << playerInputArray[0] << ", " << playerInputArray[1] << "]");
+
         st[index].oc = *oc;
         st[index].playerIndex = index;
         
-        float weight = (float)playerInputArray[index] / (float)sumWeight;
-        int bitrate = (int)(weight * totalBandwidthAvailable);
+        HANDLE setupThread = (HANDLE)_beginthread(&setupAVCodecContextProc, 0, (void*)index);
+        BOOL success = SetThreadPriority(setupThread, THREAD_PRIORITY_HIGHEST);
 
-        // This will set up context for the other ost->enc (the one currently not in use)
-        codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codecSetup, &st[index].oc, bitrate, 1 - contextToUse[index], index);
-
-        LOG_WARN(logger, "Player = " << index << " input = " << playerInputArray[index] << " bitrate = " << bitrate);
-        //LOG_WARN(logger, "Context to use = " << contextToUse[index]);
+        if (success == FALSE)
+        {
+            LOG_WARN(logger, "Set priority of setupThread failed!");
+        }
 
         oldSumWeight[index] = sumWeight;
         isThreadStarted[index] = true;
-        isThreadComplete[index] = true;
     }
+    
+    // Only swap in the new AVCodecContext when the thread is done
     if (isThreadComplete[index] == true)
     {
         // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
         if (contextToUse[index] == 0)
         {
             ostArray[index].enc1 = codecContextArray[index];
-
+            LOG_WARN(logger, "Player " << index << ", Using context 1");
+            
         }
         // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
         else
         {
             ostArray[index].enc0 = codecContextArray[index];
+            LOG_WARN(logger, "Player " << index << ", Using context 0");
         }
-        isThreadStarted[index] = false; // Ready to let thread start again if necessary
-        isThreadComplete[index] = false; // Ready to let thread start again if necessary
 
         contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
+
+        freeContextComplete[index] = true;//freeContextComplete[index] = false;
+        //HANDLE closingThread = (HANDLE)_beginthread(&avcodec_free_context_proc, 0, (void*)index);
+        //BOOL success = SetThreadPriority(closingThread, THREAD_PRIORITY_HIGHEST);
+        //if (success == FALSE)
+        //{
+        //    LOG_WARN(logger, "Set priority of closingThread failed!");
+        //}
+       
+        isThreadStarted[index] = false; // Ready to let thread start again if necessary
+        isThreadComplete[index] = false; // Ready to let thread start again if necessary
     }
+    
     ostArray[index].frame->width = bufferWidth;
     ostArray[index].frame->height = bufferHeight;
     ostArray[index].frame->format = STREAM_PIX_FMT;
