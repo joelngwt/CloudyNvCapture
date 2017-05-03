@@ -74,7 +74,7 @@ uint8_t *bufferArray[MAX_PLAYERS];
 // FFmpeg constants
 #define STREAM_FRAME_RATE 30 /* 25 images/s */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
-const char* encoderName = "nvenc_h264";
+const char* encoderName = "h264_nvenc";
 
 // Input and Output video size
 int bufferWidth;
