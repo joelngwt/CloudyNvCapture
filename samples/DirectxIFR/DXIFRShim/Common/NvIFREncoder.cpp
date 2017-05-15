@@ -1408,9 +1408,6 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
         return 1;
     }
 
-    //encodeConfig.endFrameIdx = 9999;
-    //uint8_t *buffer;
-    //EncodeFrameLoop(buffer, encodeConfig);
 //
 //    nvStatus = EncodeFrame(NULL, true, encodeConfig.width, encodeConfig.height);
 //    if (nvStatus != NV_ENC_SUCCESS)
@@ -1454,89 +1451,58 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
 
 void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, EncodeConfig encodeConfig)
 {
-    for (int frm = encodeConfig.startFrameIdx; frm <= encodeConfig.endFrameIdx; frm++)
-    {
-        //numBytesRead = 0;
-        //loadframe(yuv, hInput, frm, encodeConfig.width, encodeConfig.height, numBytesRead, encodeConfig.isYuv444);
-        //if (numBytesRead == 0)
-        //    break;
+    //numBytesRead = 0;
+    //loadframe(yuv, hInput, frm, encodeConfig.width, encodeConfig.height, numBytesRead, encodeConfig.isYuv444);
+    //if (numBytesRead == 0)
+    //    break;
 
-        EncodeFrameConfig stEncodeFrame;
-        memset(&stEncodeFrame, 0, sizeof(stEncodeFrame));
-        stEncodeFrame.yuv[0] = buffer;//yuv[0];
-        stEncodeFrame.yuv[1] = buffer;//yuv[1];
-        stEncodeFrame.yuv[2] = buffer;//yuv[2];
+    EncodeFrameConfig stEncodeFrame;
+    memset(&stEncodeFrame, 0, sizeof(stEncodeFrame));
+    stEncodeFrame.yuv[0] = buffer;//yuv[0];
+    stEncodeFrame.yuv[1] = buffer;//yuv[1];
+    stEncodeFrame.yuv[2] = buffer;//yuv[2];
 
-        stEncodeFrame.stride[0] = encodeConfig.width;
-        stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
-        stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
-        stEncodeFrame.width = encodeConfig.width;
-        stEncodeFrame.height = encodeConfig.height;
+    stEncodeFrame.stride[0] = encodeConfig.width;
+    stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    stEncodeFrame.width = encodeConfig.width;
+    stEncodeFrame.height = encodeConfig.height;
 
-        EncodeFrame(&stEncodeFrame, false, encodeConfig.width, encodeConfig.height);
-        numFramesEncoded++;
+    EncodeFrame(&stEncodeFrame, false, encodeConfig.width, encodeConfig.height);
+    numFramesEncoded++;
 
-        if (frm == 500)//encodeConfig.endFrameIdx / 2)
-        {
-            NV_ENC_CAPS_PARAM stCapsParam;
-            memset(&stCapsParam, 0, sizeof(NV_ENC_CAPS_PARAM));
-            SET_VER(stCapsParam, NV_ENC_CAPS_PARAM);
-            stCapsParam.capsToQuery = NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE;
-            int supported = 0;
-        
-            NVENCSTATUS nvStatus = m_pNvHWEncoder->NvEncGetEncodeCaps(NV_ENC_CODEC_H264_GUID, &stCapsParam, &supported);
-        
-            if (nvStatus != NV_ENC_SUCCESS)
-            {
-                printf("NvEncGetEncodeCaps failed. Error ID = %d\n", nvStatus);
-            }
-            else
-            {
-                if (supported == 1)
-                {
-                    printf("NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE supported\n");
-                }
-                else
-                {
-                    PRINTERR("NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE not supported\n");
-                    //return NV_ENC_ERR_UNSUPPORTED_DEVICE;
-                }
-            }
-        }
-
-        if (frm == 500)//encodeConfig.endFrameIdx / 2)
-        {
-            NvEncPictureCommand encPicCommand;
-        
-            encPicCommand.bBitrateChangePending = true;
-            encPicCommand.newVBVSize = 0;
-            encPicCommand.newBitrate = 250000;
-        
-            //encPicCommand.bForceIDR = false;
-        
-            //encPicCommand.bForceIntraRefresh = false;
-            //encPicCommand.intraRefreshDuration = 0;
-        
-            //encPicCommand.bInvalidateRefFrames = false;
-            //encPicCommand.numRefFramesToInvalidate = 0;
-            //encPicCommand.refFrameNumbers[0] = 0;    
-        
-            encPicCommand.bResolutionChangePending = false;
-            //encPicCommand.newHeight = 640;
-            //encPicCommand.newWidth = 480;
-        
-            NVENCSTATUS status = m_pNvHWEncoder->NvEncReconfigureEncoder(&encPicCommand);
-            if (status == NV_ENC_SUCCESS)
-            {
-                printf("bitrate changed!\n");
-            }
-            else
-            {
-                // Getting NV_ENC_ERR_INVALID_PARAM (== 8)
-                printf("Bitrate changing failed! Error is %d\n", status);
-            }
-        }
-    }
+    //if (frm == 500)//encodeConfig.endFrameIdx / 2)
+    //{
+    //    NvEncPictureCommand encPicCommand;
+    //
+    //    encPicCommand.bBitrateChangePending = true;
+    //    encPicCommand.newVBVSize = 0;
+    //    encPicCommand.newBitrate = 250000;
+    //
+    //    //encPicCommand.bForceIDR = false;
+    //
+    //    //encPicCommand.bForceIntraRefresh = false;
+    //    //encPicCommand.intraRefreshDuration = 0;
+    //
+    //    //encPicCommand.bInvalidateRefFrames = false;
+    //    //encPicCommand.numRefFramesToInvalidate = 0;
+    //    //encPicCommand.refFrameNumbers[0] = 0;    
+    //
+    //    encPicCommand.bResolutionChangePending = false;
+    //    //encPicCommand.newHeight = 640;
+    //    //encPicCommand.newWidth = 480;
+    //
+    //    NVENCSTATUS status = m_pNvHWEncoder->NvEncReconfigureEncoder(&encPicCommand);
+    //    if (status == NV_ENC_SUCCESS)
+    //    {
+    //        printf("bitrate changed!\n");
+    //    }
+    //    else
+    //    {
+    //        // Getting NV_ENC_ERR_INVALID_PARAM (== 8)
+    //        printf("Bitrate changing failed! Error is %d\n", status);
+    //    }
+    //}
 }
 
 NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush, uint32_t width, uint32_t height)
@@ -1544,9 +1510,6 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
     uint32_t lockedPitch = 0;
     EncodeBuffer *pEncodeBuffer = NULL;
-
-    pEncodeBuffer->stInputBfr.hInputSurface = pEncodeFrame->yuv[0];
-    pEncodeBuffer->stInputBfr.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12_PL;
 
     if (bFlush)
     {
@@ -1559,33 +1522,33 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
-    //pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
-    //if (!pEncodeBuffer)
-    //{
-    //    m_pNvHWEncoder->ProcessOutput(m_EncodeBufferQueue.GetPending());
-    //    pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
-    //}
-    //
-    //unsigned char *pInputSurface;
-    //
-    //nvStatus = m_pNvHWEncoder->NvEncLockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface, (void**)&pInputSurface, &lockedPitch);
-    //if (nvStatus != NV_ENC_SUCCESS)
-    //    return nvStatus;
+    pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
+    if (!pEncodeBuffer)
+    {
+        m_pNvHWEncoder->ProcessOutput(m_EncodeBufferQueue.GetPending());
+        pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
+    }
+    
+    unsigned char *pInputSurface;
+    
+    nvStatus = m_pNvHWEncoder->NvEncLockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface, (void**)&pInputSurface, &lockedPitch);
+    if (nvStatus != NV_ENC_SUCCESS)
+        return nvStatus;
 
-    //if (pEncodeBuffer->stInputBfr.bufferFmt == NV_ENC_BUFFER_FORMAT_NV12_PL)
-    //{
-    //    unsigned char *pInputSurfaceCh = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight*lockedPitch);
-    //    convertYUVpitchtoNV12(pEncodeFrame->yuv[0], pEncodeFrame->yuv[1], pEncodeFrame->yuv[2], pInputSurface, pInputSurfaceCh, width, height, width, lockedPitch);
-    //}
-    //else
-    //{
-    //    unsigned char *pInputSurfaceCb = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
-    //    unsigned char *pInputSurfaceCr = pInputSurfaceCb + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
-    //    convertYUVpitchtoYUV444(pEncodeFrame->yuv[0], pEncodeFrame->yuv[1], pEncodeFrame->yuv[2], pInputSurface, pInputSurfaceCb, pInputSurfaceCr, width, height, width, lockedPitch);
-    //}
-    //nvStatus = m_pNvHWEncoder->NvEncUnlockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface);
-    //if (nvStatus != NV_ENC_SUCCESS)
-    //    return nvStatus;
+    if (pEncodeBuffer->stInputBfr.bufferFmt == NV_ENC_BUFFER_FORMAT_NV12_PL)
+    {
+        unsigned char *pInputSurfaceCh = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight*lockedPitch);
+        convertYUVpitchtoNV12(pEncodeFrame->yuv[0], pEncodeFrame->yuv[1], pEncodeFrame->yuv[2], pInputSurface, pInputSurfaceCh, width, height, width, lockedPitch);
+    }
+    else
+    {
+        unsigned char *pInputSurfaceCb = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
+        unsigned char *pInputSurfaceCr = pInputSurfaceCb + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
+        convertYUVpitchtoYUV444(pEncodeFrame->yuv[0], pEncodeFrame->yuv[1], pEncodeFrame->yuv[2], pInputSurface, pInputSurfaceCb, pInputSurfaceCr, width, height, width, lockedPitch);
+    }
+    nvStatus = m_pNvHWEncoder->NvEncUnlockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface);
+    if (nvStatus != NV_ENC_SUCCESS)
+        return nvStatus;
 
     nvStatus = m_pNvHWEncoder->NvEncEncodeFrame(pEncodeBuffer, NULL, width, height, (NV_ENC_PIC_STRUCT)m_uPicStruct);
     return nvStatus;

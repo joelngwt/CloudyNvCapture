@@ -1141,7 +1141,7 @@ NVENCSTATUS CNvHWEncoder::NvEncFlushEncoderQueue(void *hEOSEvent)
 
 NVENCSTATUS CNvHWEncoder::ParseArguments(EncodeConfig *encodeConfig, int argc, char *argv[])
 {
-    for (int i = 1; i < argc; i++)
+    for (int i = 0; i < argc; i++)
     {
         if (stricmp(argv[i], "-bmpfilePath") == 0)
         {
