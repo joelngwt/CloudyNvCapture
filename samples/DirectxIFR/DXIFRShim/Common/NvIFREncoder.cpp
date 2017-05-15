@@ -679,7 +679,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
-    char *argv[] = { "-i", "inputFile.yuv", "-o", "output.h264", "-size", "1920", "1080", NULL };
+    char *argv[] = { "-i", "inputFile.yuv", "-o", "output.h264", "-size", "1280", "720", NULL };
     int argc = sizeof(argv) / sizeof(char*) - 1;
 
     CNvEncoder nvEncoder;
@@ -1207,63 +1207,6 @@ NVENCSTATUS loadframe(uint8_t *yuvInput[3], HANDLE hInputYUVFile, uint32_t frmId
     return NV_ENC_SUCCESS;
 }
 
-void PrintHelp()
-{
-    printf("Usage : NvEncoder \n"
-        "-i <string>                  Specify input yuv420 file\n"
-        "-o <string>                  Specify output bitstream file\n"
-        "-size <int int>              Specify input resolution <width height>\n"
-        "\n### Optional parameters ###\n"
-        "-codec <integer>             Specify the codec \n"
-        "                                 0: H264\n"
-        "                                 1: HEVC\n"
-        "-preset <string>             Specify the preset for encoder settings\n"
-        "                                 hq : nvenc HQ \n"
-        "                                 hp : nvenc HP \n"
-        "                                 lowLatencyHP : nvenc low latency HP \n"
-        "                                 lowLatencyHQ : nvenc low latency HQ \n"
-        "                                 lossless : nvenc Lossless HP \n"
-        "-startf <integer>            Specify start index for encoding. Default is 0\n"
-        "-endf <integer>              Specify end index for encoding. Default is end of file\n"
-        "-fps <integer>               Specify encoding frame rate\n"
-        "-goplength <integer>         Specify gop length\n"
-        "-numB <integer>              Specify number of B frames\n"
-        "-bitrate <integer>           Specify the encoding average bitrate\n"
-        "-vbvMaxBitrate <integer>     Specify the vbv max bitrate\n"
-        "-vbvSize <integer>           Specify the encoding vbv/hrd buffer size\n"
-        "-rcmode <integer>            Specify the rate control mode\n"
-        "                                 0:  Constant QP\n"
-        "                                 1:  Single pass VBR\n"
-        "                                 2:  Single pass CBR\n"
-        "                                 4:  Single pass VBR minQP\n"
-        "                                 8:  Two pass frame quality\n"
-        "                                 16: Two pass frame size cap\n"
-        "                                 32: Two pass VBR\n"
-        "-qp <integer>                Specify qp for Constant QP mode\n"
-        "-i_qfactor <float>           Specify qscale difference between I-frames and P-frames\n"
-        "-b_qfactor <float>           Specify qscale difference between P-frames and B-frames\n"
-        "-i_qoffset <float>           Specify qscale offset between I-frames and P-frames\n"
-        "-b_qoffset <float>           Specify qscale offset between P-frames and B-frames\n"
-        "-picStruct <integer>         Specify the picture structure\n"
-        "                                 1:  Progressive frame\n"
-        "                                 2:  Field encoding top field first\n"
-        "                                 3:  Field encoding bottom field first\n"
-        "-devicetype <integer>        Specify devicetype used for encoding\n"
-        "                                 0:  DX9\n"
-        "                                 1:  DX11\n"
-        "                                 2:  Cuda\n"
-        "                                 3:  DX10\n"
-        "-yuv444 <integer>             Specify the input YUV format\n"
-        "                                 0: YUV 420\n"
-        "                                 1: YUV 444\n"
-        "-deviceID <integer>           Specify the GPU device on which encoding will take place\n"
-        "-meonly <integer>             Specify Motion estimation only(permissive value 1 and 2) to generates motion vectors and Mode information\n"
-        "                                 1: Motion estimation between startf and endf\n"
-        "                                 2: Motion estimation for all consecutive frames from startf to endf\n"
-        "-preloadedFrameCount <integer> Specify number of frame to load in memory(default value=240) with min value 2(1 frame for ref, 1 frame for input)\n"
-        "-help                         Prints Help Information\n\n"
-        );
-}
 
 int CNvEncoder::EncodeMain(int argc, char *argv[])
 {
@@ -1300,13 +1243,11 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     nvStatus = m_pNvHWEncoder->ParseArguments(&encodeConfig, argc, argv);
     if (nvStatus != NV_ENC_SUCCESS)
     {
-        PrintHelp();
         return 1;
     }
 
     if (!encodeConfig.inputFileName || !encodeConfig.outputFileName || encodeConfig.width == 0 || encodeConfig.height == 0)
     {
-        PrintHelp();
         return 1;
     }
 
@@ -1552,10 +1493,4 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
 
     nvStatus = m_pNvHWEncoder->NvEncEncodeFrame(pEncodeBuffer, NULL, width, height, (NV_ENC_PIC_STRUCT)m_uPicStruct);
     return nvStatus;
-}
-
-int mainUnused(int argc, char **argv)
-{
-    CNvEncoder nvEncoder;
-    return nvEncoder.EncodeMain(argc, argv);
 }
