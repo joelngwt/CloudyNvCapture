@@ -90,7 +90,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetName>DXGI</TargetName>
-    <IncludePath>$(SolutionDir)\FFmpeg\include;$(IncludePath)</IncludePath>
+    <IncludePath>G:\Repositories\NvCapture\samples\DirectxIFR\DXIFRShim\Common\inc;$(SolutionDir)\FFmpeg\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -195,10 +195,13 @@
     <ClCompile Include="..\Common\AppParam.cpp" />
     <ClCompile Include="..\Common\NvIFREncoder.cpp" />
     <ClCompile Include="..\Common\NvIFREncoderDXGIBase.cpp" />
+    <ClCompile Include="..\Common\src\dynlink_cuda.cpp" />
+    <ClCompile Include="..\Common\src\NvHWEncoder.cpp" />
     <ClCompile Include="DXGI.cpp" />
     <ClCompile Include="IDXGIFactory.cpp" />
     <ClCompile Include="IDXGIFactory1.cpp" />
     <ClCompile Include="IDXGISwapChain.cpp" />
+    <ClCompile Include="NvEncoder.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AppParam.h" />
@@ -213,6 +216,7 @@
     <ClInclude Include="IDXGIFactory.h" />
     <ClInclude Include="IDXGIFactory1.h" />
     <ClInclude Include="IDXGISwapChain.h" />
+    <ClInclude Include="NvEncoder.h" />
     <ClInclude Include="NvIFREncoderDXGI.h" />
   </ItemGroup>
   <ItemGroup>
