@@ -771,7 +771,9 @@ void NvIFREncoder::EncoderThreadProc(int index)
             ResetEvent(gpuEvent[index]);
 
             nvEncoder.EncodeFrameLoop(bufferArray[index], encodeConfig);
+
             //write_video_frame(ocArray[index], /*&ostArray[index], */bufferArray[index], index);
+            //fwrite(&frameBuffer, bufferWidth*bufferHeight*1.5, 1, pipe0);
         }
         else
         {
@@ -1250,7 +1252,7 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     {
         return 1;
     }
-
+    
     encodeConfig.fOutput = fopen(encodeConfig.outputFileName, "wb");
     if (encodeConfig.fOutput == NULL)
     {
@@ -1453,19 +1455,22 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     EncodeBuffer *pEncodeBuffer = NULL;
 
     if (bFlush)
-    {
+    {   
+        // Does not run
         FlushEncoder();
         return NV_ENC_SUCCESS;
     }
 
     if (!pEncodeFrame)
     {
+        // Does not run
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
     pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
     if (!pEncodeBuffer)
     {
+        // This does run
         m_pNvHWEncoder->ProcessOutput(m_EncodeBufferQueue.GetPending());
         pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
     }
@@ -1474,7 +1479,10 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     
     nvStatus = m_pNvHWEncoder->NvEncLockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface, (void**)&pInputSurface, &lockedPitch);
     if (nvStatus != NV_ENC_SUCCESS)
+    {   
+        // Does not run
         return nvStatus;
+    }
 
     if (pEncodeBuffer->stInputBfr.bufferFmt == NV_ENC_BUFFER_FORMAT_NV12_PL)
     {
@@ -1483,14 +1491,17 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     }
     else
     {
+        // Does not run
         unsigned char *pInputSurfaceCb = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
         unsigned char *pInputSurfaceCr = pInputSurfaceCb + (pEncodeBuffer->stInputBfr.dwHeight * lockedPitch);
         convertYUVpitchtoYUV444(pEncodeFrame->yuv[0], pEncodeFrame->yuv[1], pEncodeFrame->yuv[2], pInputSurface, pInputSurfaceCb, pInputSurfaceCr, width, height, width, lockedPitch);
     }
     nvStatus = m_pNvHWEncoder->NvEncUnlockInputBuffer(pEncodeBuffer->stInputBfr.hInputSurface);
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        // Does not run
         return nvStatus;
-
+    }
     nvStatus = m_pNvHWEncoder->NvEncEncodeFrame(pEncodeBuffer, NULL, width, height, (NV_ENC_PIC_STRUCT)m_uPicStruct);
     return nvStatus;
 }

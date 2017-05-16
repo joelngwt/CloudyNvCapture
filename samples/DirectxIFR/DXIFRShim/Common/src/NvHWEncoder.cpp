@@ -11,6 +11,10 @@
 
 #include "../inc/NvHWEncoder.h"
 
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
 NVENCSTATUS CNvHWEncoder::NvEncOpenEncodeSession(void* device, uint32_t deviceType)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
@@ -934,6 +938,20 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
     }
     m_bEncoderInitialized = true;
 
+    std::stringstream *StringStream = new std::stringstream();
+    //*StringStream << "ffmpeg " \
+        //    "-i - " \
+        //    "-listen 1 -vcodec copy -preset ultrafast " \
+        //    "-an -tune zerolatency " \
+        //    "-f h264 http://magam001.d1.comp.nus.edu.sg:30000 2> FFmpegLog.txt";
+    *StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1280x720" \
+         " -re -i - " \
+         "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
+         "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
+         "-f mpegts http://magam001.d1.comp.nus.edu.sg:30000" << " 2> FFmpegLog.txt";
+    
+    m_fOutput = _popen(StringStream->str().c_str(), "wb");
+
     return nvStatus;
 }
 
@@ -1015,6 +1033,7 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer)
     {
         fwrite(lockBitstreamData.bitstreamBufferPtr, 1, lockBitstreamData.bitstreamSizeInBytes, m_fOutput);
         nvStatus = m_pEncodeAPI->nvEncUnlockBitstream(m_hEncoder, pEncodeBuffer->stOutputBfr.hBitstreamBuffer);
+        fflush(m_fOutput);
     }
     else
     {
@@ -1081,8 +1100,6 @@ NVENCSTATUS CNvHWEncoder::NvEncEncodeFrame(EncodeBuffer *pEncodeBuffer, NvEncPic
     encPicParams.bufferFmt = pEncodeBuffer->stInputBfr.bufferFmt;
     encPicParams.inputWidth = width;
     encPicParams.inputHeight = height;
-    // uint8_t outputBuffer;
-    //encPicParams.outputBitstream = &outputBuffer;
     encPicParams.outputBitstream = pEncodeBuffer->stOutputBfr.hBitstreamBuffer;
     encPicParams.completionEvent = pEncodeBuffer->stOutputBfr.hOutputEvent;
     encPicParams.inputTimeStamp = m_EncodeIdx;
