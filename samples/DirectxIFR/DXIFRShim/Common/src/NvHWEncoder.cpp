@@ -748,6 +748,20 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
 
     m_fOutput = pEncCfg->fOutput;
 
+    std::stringstream *StringStream = new std::stringstream();
+    *StringStream << "ffmpeg " \
+                "-i - " \
+                "-listen 1 -vcodec copy -preset ultrafast " \
+                "-an -tune zerolatency " \
+                "-f h264 http://magam001.d1.comp.nus.edu.sg:30000 2> FFmpegLog.txt";
+    //*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1280x720" \
+    //    " -re -i - " \
+    //    "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
+    //    "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
+    //    "-f mpegts http://magam001.d1.comp.nus.edu.sg:30000" << " 2> FFmpegLog.txt";
+
+    m_fOutput = _popen(StringStream->str().c_str(), "wb");
+
     if (!pEncCfg->width || !pEncCfg->height || !m_fOutput)
     {
         return NV_ENC_ERR_INVALID_PARAM;
@@ -937,20 +951,6 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
         return nvStatus;
     }
     m_bEncoderInitialized = true;
-
-    std::stringstream *StringStream = new std::stringstream();
-    //*StringStream << "ffmpeg " \
-        //    "-i - " \
-        //    "-listen 1 -vcodec copy -preset ultrafast " \
-        //    "-an -tune zerolatency " \
-        //    "-f h264 http://magam001.d1.comp.nus.edu.sg:30000 2> FFmpegLog.txt";
-    *StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1280x720" \
-         " -re -i - " \
-         "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
-         "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
-         "-f mpegts http://magam001.d1.comp.nus.edu.sg:30000" << " 2> FFmpegLog.txt";
-    
-    m_fOutput = _popen(StringStream->str().c_str(), "wb");
 
     return nvStatus;
 }

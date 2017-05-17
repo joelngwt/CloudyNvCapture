@@ -679,7 +679,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
-    char *argv[] = { "-i", "inputFile.yuv", "-o", "output.h264", "-size", "1280", "720", NULL };
+    char *argv[] = { "-i", "inputFile.yuv", "-o", "outputCodecSDK.h264", "-size", "1280", "720", NULL };
     int argc = sizeof(argv) / sizeof(char*) - 1;
 
     CNvEncoder nvEncoder;
@@ -1228,7 +1228,7 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
 
     encodeConfig.endFrameIdx = INT_MAX;
     encodeConfig.bitrate = 5000000;
-    encodeConfig.rcMode = NV_ENC_PARAMS_RC_CONSTQP;
+    encodeConfig.rcMode = NV_ENC_PARAMS_RC_CBR;
     encodeConfig.gopLength = NVENC_INFINITE_GOPLENGTH;
     encodeConfig.deviceType = NV_ENC_CUDA;
     encodeConfig.codec = NV_ENC_H264;
@@ -1238,34 +1238,12 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     encodeConfig.b_quant_factor = DEFAULT_B_QFACTOR;
     encodeConfig.i_quant_offset = DEFAULT_I_QOFFSET;
     encodeConfig.b_quant_offset = DEFAULT_B_QOFFSET;
-    encodeConfig.presetGUID = NV_ENC_PRESET_DEFAULT_GUID;
+    encodeConfig.presetGUID = NV_ENC_PRESET_LOW_LATENCY_HP_GUID;
     encodeConfig.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
     encodeConfig.isYuv444 = 0;
-
-    nvStatus = m_pNvHWEncoder->ParseArguments(&encodeConfig, argc, argv);
-    if (nvStatus != NV_ENC_SUCCESS)
-    {
-        return 1;
-    }
-
-    if (!encodeConfig.inputFileName || !encodeConfig.outputFileName || encodeConfig.width == 0 || encodeConfig.height == 0)
-    {
-        return 1;
-    }
-    
-    encodeConfig.fOutput = fopen(encodeConfig.outputFileName, "wb");
-    if (encodeConfig.fOutput == NULL)
-    {
-        PRINTERR("Failed to create \"%s\"\n", encodeConfig.outputFileName);
-        return 1;
-    }
-    
-    hInput = nvOpenFile(encodeConfig.inputFileName);
-    if (hInput == INVALID_HANDLE_VALUE)
-    {
-        PRINTERR("Failed to open \"%s\"\n", encodeConfig.inputFileName);
-        return 1;
-    }
+    encodeConfig.width = 1280;
+    encodeConfig.height = 720;
+    encodeConfig.vbvSize = 0;
 
     switch (encodeConfig.deviceType)
     {
@@ -1469,7 +1447,7 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
 
     pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
     if (!pEncodeBuffer)
-    {
+    {        
         // This does run
         m_pNvHWEncoder->ProcessOutput(m_EncodeBufferQueue.GetPending());
         pEncodeBuffer = m_EncodeBufferQueue.GetAvailable();
