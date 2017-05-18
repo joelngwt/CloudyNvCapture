@@ -819,8 +819,8 @@ Streamer * NvIFREncoder::pSharedStreamer = NULL;
 #define BITSTREAM_BUFFER_SIZE 2 * 1024 * 1024
 
 void convertYUVpitchtoNV12(unsigned char *yuv_luma, unsigned char *yuv_cb, unsigned char *yuv_cr,
-    unsigned char *nv12_luma, unsigned char *nv12_chroma,
-    int width, int height, int srcStride, int dstStride)
+                           unsigned char *nv12_luma, unsigned char *nv12_chroma,
+                           int width, int height, int srcStride, int dstStride)
 {
     int y;
     int x;
@@ -1244,6 +1244,7 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     encodeConfig.width = 1280;
     encodeConfig.height = 720;
     encodeConfig.vbvSize = 0;
+    encodeConfig.numB = 0;
 
     switch (encodeConfig.deviceType)
     {
@@ -1293,7 +1294,8 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
             NumIOBuffers = MAX_ENCODE_QUEUE / 2;
         else
             NumIOBuffers = MAX_ENCODE_QUEUE;
-        m_uEncodeBufferCount = NumIOBuffers;
+        m_uEncodeBufferCount = 1;
+        //m_uEncodeBufferCount = NumIOBuffers;
     }
     m_uPicStruct = encodeConfig.pictureStruct;
     nvStatus = AllocateIOBuffers(encodeConfig.width, encodeConfig.height, encodeConfig.isYuv444);
@@ -1321,7 +1323,7 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     yuv[0] = new(std::nothrow) uint8_t[lumaPlaneSize];
     yuv[1] = new(std::nothrow) uint8_t[chromaPlaneSize];
     yuv[2] = new(std::nothrow) uint8_t[chromaPlaneSize];
-    NvQueryPerformanceCounter(&lStart);
+    //NvQueryPerformanceCounter(&lStart);
 
     if (yuv[0] == NULL || yuv[1] == NULL || yuv[2] == NULL)
     {
@@ -1346,28 +1348,28 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
 //        printf("Avergage Encode Time : %6.2fms\n", ((elapsedTime*1000.0) / numFramesEncoded) / lFreq);
 //    }
 //
-//exit:
-//    if (encodeConfig.fOutput)
-//    {
-//        fclose(encodeConfig.fOutput);
-//    }
-//
-//    if (hInput)
-//    {
-//        nvCloseFile(hInput);
-//    }
-//
-//    Deinitialize(encodeConfig.deviceType);
-//
-//    for (int i = 0; i < 3; i++)
-//    {
-//        if (yuv[i])
-//        {
-//            delete[] yuv[i];
-//        }
-//    }
-//
-//    return bError ? 1 : 0;
+exit:
+    if (encodeConfig.fOutput)
+    {
+        fclose(encodeConfig.fOutput);
+    }
+
+    if (hInput)
+    {
+        nvCloseFile(hInput);
+    }
+
+    Deinitialize(encodeConfig.deviceType);
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (yuv[i])
+        {
+            delete[] yuv[i];
+        }
+    }
+
+    return bError ? 1 : 0;
 }
 
 void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, EncodeConfig encodeConfig)
@@ -1461,7 +1463,7 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
         // Does not run
         return nvStatus;
     }
-
+    
     if (pEncodeBuffer->stInputBfr.bufferFmt == NV_ENC_BUFFER_FORMAT_NV12_PL)
     {
         unsigned char *pInputSurfaceCh = pInputSurface + (pEncodeBuffer->stInputBfr.dwHeight*lockedPitch);
