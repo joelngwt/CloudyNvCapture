@@ -15,15 +15,20 @@
 #include "../common/inc/nvCPUOPSys.h"
 #include "../common/inc/nvEncodeAPI.h"
 #include "../common/inc/nvUtils.h"
+#include "NvEncoder.h"
 #include "../common/inc/nvFileIO.h"
 #include <new>
-#include "NvEncoder.h"
+
+#include <iostream>
+#include <fstream>
 
 #define BITSTREAM_BUFFER_SIZE 2 * 1024 * 1024
 
+std::ofstream NvEncoderLogFile;
+
 void convertYUVpitchtoNV12(unsigned char *yuv_luma, unsigned char *yuv_cb, unsigned char *yuv_cr,
-    unsigned char *nv12_luma, unsigned char *nv12_chroma,
-    int width, int height, int srcStride, int dstStride)
+                           unsigned char *nv12_luma, unsigned char *nv12_chroma,
+                           int width, int height, int srcStride, int dstStride)
 {
     int y;
     int x;
@@ -32,10 +37,11 @@ void convertYUVpitchtoNV12(unsigned char *yuv_luma, unsigned char *yuv_cb, unsig
     if (dstStride == 0)
         dstStride = width;
 
-    for (y = 0; y < height; y++)
-    {
-        memcpy(nv12_luma + (dstStride*y), yuv_luma + (srcStride*y), width);
-    }
+   for (y = 0; y < height; y++)
+   {
+       // Just copying it over row by row directly. Simple and straightforward
+       memcpy(nv12_luma + (dstStride*y), yuv_luma + (srcStride*y), width);
+   }
 
     for (y = 0; y < height / 2; y++)
     {
@@ -164,6 +170,57 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
 }
 
 #if defined(NV_WINDOWS)
+NVENCSTATUS CNvEncoder::InitD3D9(uint32_t deviceID)
+{
+    D3DPRESENT_PARAMETERS d3dpp;
+    D3DADAPTER_IDENTIFIER9 adapterId;
+    unsigned int iAdapter = NULL; // Our adapter
+    HRESULT hr = S_OK;
+
+    m_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
+    if (m_pD3D == NULL)
+    {
+        assert(m_pD3D);
+        return NV_ENC_ERR_OUT_OF_MEMORY;;
+    }
+
+    if (deviceID >= m_pD3D->GetAdapterCount())
+    {
+        PRINTERR("Invalid Device Id = %d\n. Please use DX10/DX11 to detect headless video devices.\n", deviceID);
+        return NV_ENC_ERR_INVALID_ENCODERDEVICE;
+    }
+
+    hr = m_pD3D->GetAdapterIdentifier(deviceID, 0, &adapterId);
+    if (hr != S_OK)
+    {
+        PRINTERR("Invalid Device Id = %d\n", deviceID);
+        return NV_ENC_ERR_INVALID_ENCODERDEVICE;
+    }
+
+    ZeroMemory(&d3dpp, sizeof(d3dpp));
+    d3dpp.Windowed = TRUE;
+    d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
+    d3dpp.BackBufferWidth = 640;
+    d3dpp.BackBufferHeight = 480;
+    d3dpp.BackBufferCount = 1;
+    d3dpp.SwapEffect = D3DSWAPEFFECT_COPY;
+    d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    d3dpp.Flags = D3DPRESENTFLAG_VIDEO;//D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+    DWORD dwBehaviorFlags = D3DCREATE_FPU_PRESERVE | D3DCREATE_MULTITHREADED | D3DCREATE_HARDWARE_VERTEXPROCESSING;
+
+    hr = m_pD3D->CreateDevice(deviceID,
+        D3DDEVTYPE_HAL,
+        GetDesktopWindow(),
+        dwBehaviorFlags,
+        &d3dpp,
+        (IDirect3DDevice9**)(&m_pDevice));
+
+    if (FAILED(hr))
+        return NV_ENC_ERR_OUT_OF_MEMORY;
+
+    return  NV_ENC_SUCCESS;
+}
+
 NVENCSTATUS CNvEncoder::InitD3D10(uint32_t deviceID)
 {
     HRESULT hr;
@@ -244,13 +301,23 @@ NVENCSTATUS CNvEncoder::AllocateIOBuffers(uint32_t uInputWidth, uint32_t uInputH
         //Allocate output surface
         nvStatus = m_pNvHWEncoder->NvEncCreateBitstreamBuffer(BITSTREAM_BUFFER_SIZE, &m_stEncodeBuffer[i].stOutputBfr.hBitstreamBuffer);
         if (nvStatus != NV_ENC_SUCCESS)
+        {
+            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+            NvEncoderLogFile << "NvEncCreateBitstreamBuffer failed.\n";
+            NvEncoderLogFile.close();
             return nvStatus;
+        }
         m_stEncodeBuffer[i].stOutputBfr.dwBitstreamBufferSize = BITSTREAM_BUFFER_SIZE;
 
 #if defined (NV_WINDOWS)
         nvStatus = m_pNvHWEncoder->NvEncRegisterAsyncEvent(&m_stEncodeBuffer[i].stOutputBfr.hOutputEvent);
         if (nvStatus != NV_ENC_SUCCESS)
+        {
+            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+            NvEncoderLogFile << "NvEncRegisterAsyncEvent failed.\n";
+            NvEncoderLogFile.close();
             return nvStatus;
+        }
         if (m_stEncoderInput.enableMEOnly)
         {
             m_stEncodeBuffer[i].stOutputBfr.bWaitOnEvent = false;
@@ -267,7 +334,12 @@ NVENCSTATUS CNvEncoder::AllocateIOBuffers(uint32_t uInputWidth, uint32_t uInputH
 #if defined (NV_WINDOWS)
     nvStatus = m_pNvHWEncoder->NvEncRegisterAsyncEvent(&m_stEOSOutputBfr.hOutputEvent);
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "NvEncRegisterAsyncEvent failed.\n";
+        NvEncoderLogFile.close();
         return nvStatus;
+    }
 #else
     m_stEOSOutputBfr.hOutputEvent = NULL;
 #endif
@@ -416,16 +488,12 @@ NVENCSTATUS loadframe(uint8_t *yuvInput[3], HANDLE hInputYUVFile, uint32_t frmId
 
 int CNvEncoder::EncodeMain(int argc, char *argv[])
 {
-    HANDLE hInput;
-    DWORD fileSize;
-    uint32_t numBytesRead = 0;
     uint8_t *yuv[3];
     int lumaPlaneSize, chromaPlaneSize;
-    unsigned long long lStart, lEnd, lFreq;
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
-    bool bError = false;
 
-    unsigned int preloadedFrameCount = FRAME_QUEUE;
+    NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::trunc);
+    NvEncoderLogFile.close();
 
     memset(&encodeConfig, 0, sizeof(EncodeConfig));
 
@@ -452,6 +520,10 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     switch (encodeConfig.deviceType)
     {
 #if defined(NV_WINDOWS)
+    case NV_ENC_DX9:
+        InitD3D9(encodeConfig.deviceID);
+        break;
+
     case NV_ENC_DX10:
         InitD3D10(encodeConfig.deviceID);
         break;
@@ -471,13 +543,23 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
         nvStatus = m_pNvHWEncoder->Initialize(m_pDevice, NV_ENC_DEVICE_TYPE_CUDA);
 
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->Initialize failed.\n";
+        NvEncoderLogFile.close();
         return 1;
+    }
 
     encodeConfig.presetGUID = m_pNvHWEncoder->GetPresetGUID(encodeConfig.encoderPreset, encodeConfig.codec);
 
     nvStatus = m_pNvHWEncoder->CreateEncoder(&encodeConfig);
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->CreateEncoder failed.\n";
+        NvEncoderLogFile.close();
         return 1;
+    }
     encodeConfig.maxWidth = encodeConfig.maxWidth ? encodeConfig.maxWidth : encodeConfig.width;
     encodeConfig.maxHeight = encodeConfig.maxHeight ? encodeConfig.maxHeight : encodeConfig.height;
 
@@ -503,54 +585,30 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     m_uPicStruct = encodeConfig.pictureStruct;
     nvStatus = AllocateIOBuffers(encodeConfig.width, encodeConfig.height, encodeConfig.isYuv444);
     if (nvStatus != NV_ENC_SUCCESS)
-        return 1;
-
-    if (encodeConfig.preloadedFrameCount >= 2)
     {
-        preloadedFrameCount = encodeConfig.preloadedFrameCount;
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "AllocateIOBuffers failed.\n";
+        NvEncoderLogFile.close();
+        return 1;
     }
 
     uint32_t  chromaFormatIDC = (encodeConfig.isYuv444 ? 3 : 1);
     lumaPlaneSize = encodeConfig.maxWidth * encodeConfig.maxHeight;
     chromaPlaneSize = (chromaFormatIDC == 3) ? lumaPlaneSize : (lumaPlaneSize >> 2);
-    //nvGetFileSize(hInput, &fileSize);
-    //int totalFrames = fileSize / (lumaPlaneSize + chromaPlaneSize + chromaPlaneSize);
-    //if (encodeConfig.endFrameIdx < 0) {
-    //    encodeConfig.endFrameIdx = totalFrames - 1;
-    //}
-    //else if (encodeConfig.endFrameIdx > totalFrames) {
-    //    PRINTERR("nvEncoder.exe Warning: -endf %d exceeds total video frame %d, using %d instead\n", encodeConfig.endFrameIdx, totalFrames, totalFrames);
-    //    encodeConfig.endFrameIdx = totalFrames - 1;
-    //}
 
     yuv[0] = new(std::nothrow) uint8_t[lumaPlaneSize];
     yuv[1] = new(std::nothrow) uint8_t[chromaPlaneSize];
     yuv[2] = new(std::nothrow) uint8_t[chromaPlaneSize];
-    //NvQueryPerformanceCounter(&lStart);
 
     if (yuv[0] == NULL || yuv[1] == NULL || yuv[2] == NULL)
     {
         PRINTERR("\nvEncoder.exe Error: Failed to allocate memory for yuv array!\n");
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "Error: Failed to allocate memory for yuv array.\n";
+        NvEncoderLogFile.close();
         return 1;
     }
 
-    //
-    //    nvStatus = EncodeFrame(NULL, true, encodeConfig.width, encodeConfig.height);
-    //    if (nvStatus != NV_ENC_SUCCESS)
-    //    {
-    //        bError = true;
-    //        goto exit;
-    //    }
-    //
-    //    if (numFramesEncoded > 0)
-    //    {
-    //        NvQueryPerformanceCounter(&lEnd);
-    //        NvQueryPerformanceFrequency(&lFreq);
-    //        double elapsedTime = (double)(lEnd - lStart);
-    //        printf("Encoded %d frames in %6.2fms\n", numFramesEncoded, (elapsedTime*1000.0) / lFreq);
-    //        printf("Avergage Encode Time : %6.2fms\n", ((elapsedTime*1000.0) / numFramesEncoded) / lFreq);
-    //    }
-    //
     //exit:
     //    if (encodeConfig.fOutput)
     //    {
@@ -573,6 +631,7 @@ int CNvEncoder::EncodeMain(int argc, char *argv[])
     //    }
     //
     //    return bError ? 1 : 0;
+    return 0;
 }
 
 void CNvEncoder::EncodeFrameLoop(uint8_t *buffer)
@@ -588,9 +647,9 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer)
     stEncodeFrame.yuv[1] = buffer;//yuv[1];
     stEncodeFrame.yuv[2] = buffer;//yuv[2];
 
-    stEncodeFrame.stride[0] = encodeConfig.width;
-    stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
-    stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    //stEncodeFrame.stride[0] = encodeConfig.width;
+    //stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    //stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
     stEncodeFrame.width = encodeConfig.width;
     stEncodeFrame.height = encodeConfig.height;
 
@@ -646,6 +705,9 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     if (!pEncodeFrame)
     {
         // Does not run
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "pEncodeFrame is NULL. NV_ENC_ERR_INVALID_PARAM.\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -663,6 +725,9 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     if (nvStatus != NV_ENC_SUCCESS)
     {
         // Does not run
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->NvEncLockInputBuffer.\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
 
@@ -682,6 +747,9 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush
     if (nvStatus != NV_ENC_SUCCESS)
     {
         // Does not run
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->NvEncUnlockInputBuffer.\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
     nvStatus = m_pNvHWEncoder->NvEncEncodeFrame(pEncodeBuffer, NULL, width, height, (NV_ENC_PIC_STRUCT)m_uPicStruct);

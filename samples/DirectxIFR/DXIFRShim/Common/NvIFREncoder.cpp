@@ -639,6 +639,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
     NVIFR_TOSYS_SETUP_PARAMS params = { 0 };
     params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER;
+    //params.eFormat = NVIFR_FORMAT_YUV_444;
     params.eFormat = NVIFR_FORMAT_YUV_420;
     params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE;
     params.dwNBuffers = NUMFRAMESINFLIGHT;
@@ -692,13 +693,13 @@ void NvIFREncoder::EncoderThreadProc(int index)
         //    fileSize = fin.tellg();
         //    fin.get(c);
         //    fin.close();
-
+        //
         //    // If we shoot, we should refresh the shooting start time
         //    if (c == '3' && fileSize != prevFileSize)
         //    {
         //        shootingStartTime = std::time(0);
         //    }
-
+        //
         //    // We cannot let any other movement e.g. "c = 2" through if we have recently shot
         //    if ((std::time(0) - shootingStartTime) < timeBeforeIdle)
         //    {
@@ -724,16 +725,16 @@ void NvIFREncoder::EncoderThreadProc(int index)
         //    {
         //        isIdling = false; // There is input. 
         //    }
-
+        //
         //    prevFileSize = fileSize;
-
+        //
         //    playerInputArray[index] = (c - '0');
         //}
         //else
         //{
         //    LOG_ERROR(logger, "Failed to open file " << index);
         //}
-
+        //
         //// Index 0 will do the summing of the array.
         //// This will pose problems in the future if player 0 can 
         //// just leave while the other players are playing.

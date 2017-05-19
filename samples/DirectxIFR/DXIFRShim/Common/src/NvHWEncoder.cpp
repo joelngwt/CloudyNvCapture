@@ -731,8 +731,13 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
+    std::ofstream NvEncoderLogFile;
+
     if (pEncCfg == NULL)
     {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "pEncCfg == NULL. NV_ENC_ERR_INVALID_PARAM\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -743,6 +748,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
     m_uMaxHeight = (pEncCfg->maxHeight > 0 ? pEncCfg->maxHeight : pEncCfg->height);
 
     if ((m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight)) {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -764,12 +772,18 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
 
     if (!pEncCfg->width || !pEncCfg->height || !m_fOutput)
     {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
     if (pEncCfg->isYuv444 && (pEncCfg->codec == NV_ENC_HEVC))
     {
         PRINTERR("444 is not supported with HEVC \n");
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "444 is not supported with HEVC\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -778,6 +792,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("codec not supported \n");
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "codec not supported\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
 
@@ -814,6 +831,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("nvEncGetEncodePresetConfig returned failure");
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "nvEncGetEncodePresetConfig returned failure\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
     memcpy(&m_stEncodeConfig, &stPresetCfg.presetCfg, sizeof(NV_ENC_CONFIG));
@@ -948,6 +968,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("Encode Session Initialization failed");
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "Encode Session Initialization failed (m_pEncodeAPI->nvEncInitializeEncoder)\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
     m_bEncoderInitialized = true;

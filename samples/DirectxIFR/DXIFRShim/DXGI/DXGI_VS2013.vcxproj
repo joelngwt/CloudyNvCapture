@@ -181,7 +181,7 @@
       <AdditionalIncludeDirectories>..\Common;..\..\..\..\inc;..\..\..\Util;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>_dxgi.x64.lib;winmm.lib;d3d10.lib;d3d11.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>_dxgi.x64.lib;winmm.lib;d3d10.lib;d3d11.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>DXGI.def</ModuleDefinitionFile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
