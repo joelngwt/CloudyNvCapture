@@ -484,12 +484,12 @@ NVENCSTATUS loadframe(uint8_t *yuvInput[3], HANDLE hInputYUVFile, uint32_t frmId
     }
     return NV_ENC_SUCCESS;
 }
+int lumaPlaneSize, chromaPlaneSize;
 
-
-int CNvEncoder::EncodeMain(int argc, char *argv[])
+int CNvEncoder::EncodeMain()
 {
     uint8_t *yuv[3];
-    int lumaPlaneSize, chromaPlaneSize;
+    
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
     NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::trunc);
@@ -643,15 +643,16 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer)
 
     EncodeFrameConfig stEncodeFrame;
     memset(&stEncodeFrame, 0, sizeof(stEncodeFrame));
-    stEncodeFrame.yuv[0] = buffer;//yuv[0];
-    stEncodeFrame.yuv[1] = buffer;//yuv[1];
-    stEncodeFrame.yuv[2] = buffer;//yuv[2];
-
-    //stEncodeFrame.stride[0] = encodeConfig.width;
-    //stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
-    //stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    
+    stEncodeFrame.stride[0] = encodeConfig.width;
+    stEncodeFrame.stride[1] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
+    stEncodeFrame.stride[2] = (encodeConfig.isYuv444) ? encodeConfig.width : encodeConfig.width / 2;
     stEncodeFrame.width = encodeConfig.width;
     stEncodeFrame.height = encodeConfig.height;
+
+    stEncodeFrame.yuv[0] = buffer;//yuv[0];
+    stEncodeFrame.yuv[1] = buffer + (stEncodeFrame.stride[0] * encodeConfig.height);//yuv[1];
+    stEncodeFrame.yuv[2] = buffer + (stEncodeFrame.stride[0] * encodeConfig.height * 5 / 4);//yuv[2];
 
     EncodeFrame(&stEncodeFrame, false, encodeConfig.width, encodeConfig.height);
 

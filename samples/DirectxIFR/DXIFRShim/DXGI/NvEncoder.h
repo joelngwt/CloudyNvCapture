@@ -108,7 +108,7 @@ public:
     CNvEncoder();
     virtual ~CNvEncoder();
 
-    int                                                  EncodeMain(int argc, char **argv);
+    int                                                  EncodeMain();
     void                                                 EncodeFrameLoop(uint8_t *buffer);
     EncodeConfig                                         encodeConfig;
     //int numBytesRead;

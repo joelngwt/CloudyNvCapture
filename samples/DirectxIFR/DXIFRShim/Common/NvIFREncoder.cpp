@@ -674,15 +674,12 @@ void NvIFREncoder::EncoderThreadProc(int index)
     codecSetup = avcodec_find_encoder_by_name(encoderName);
 
     ostringstream oss;
-    oss << "G:\\Packaged Games\\414 Shipping 1-2-3 Limited 2\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+    oss << "G:\\Packaged Games\\414 Development Measure New Instance\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
-    char *argv[] = { "-i", "inputFile.yuv", "-o", "outputCodecSDK.h264", "-size", "1280", "720", NULL };
-    int argc = sizeof(argv) / sizeof(char*) - 1;
-
     CNvEncoder nvEncoder;
-    nvEncoder.EncodeMain(argc, argv);
+    nvEncoder.EncodeMain();
 
     while (!bStopEncoder)
     {

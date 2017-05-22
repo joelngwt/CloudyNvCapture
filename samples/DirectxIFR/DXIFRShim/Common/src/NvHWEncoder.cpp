@@ -936,34 +936,6 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
         m_stEncodeConfig.encodeCodecConfig.hevcConfig.idrPeriod = pEncCfg->gopLength;
     }
 
-    if (pEncCfg->enableMEOnly == 1 || pEncCfg->enableMEOnly == 2)
-    {
-        NV_ENC_CAPS_PARAM stCapsParam;
-        memset(&stCapsParam, 0, sizeof(NV_ENC_CAPS_PARAM));
-        SET_VER(stCapsParam, NV_ENC_CAPS_PARAM);
-        stCapsParam.capsToQuery = NV_ENC_CAPS_SUPPORT_MEONLY_MODE;
-        m_stCreateEncodeParams.enableMEOnlyMode =  true;
-        int meonlyMode = 0;
-        nvStatus = m_pEncodeAPI->nvEncGetEncodeCaps(m_hEncoder, m_stCreateEncodeParams.encodeGUID, &stCapsParam, &meonlyMode);
-        if (nvStatus != NV_ENC_SUCCESS)
-        {
-            PRINTERR("Encode Session Initialization failed");
-            return nvStatus;
-        }
-        else
-        {
-            if (meonlyMode == 1)
-            {
-                printf("NV_ENC_CAPS_SUPPORT_MEONLY_MODE  supported\n");
-            }
-            else
-            {
-                PRINTERR("NV_ENC_CAPS_SUPPORT_MEONLY_MODE not supported\n");
-                return NV_ENC_ERR_UNSUPPORTED_DEVICE;
-            }
-        } 
-    }
-
     nvStatus = m_pEncodeAPI->nvEncInitializeEncoder(m_hEncoder, &m_stCreateEncodeParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
@@ -1056,7 +1028,6 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer)
     {
         fwrite(lockBitstreamData.bitstreamBufferPtr, 1, lockBitstreamData.bitstreamSizeInBytes, m_fOutput);
         nvStatus = m_pEncodeAPI->nvEncUnlockBitstream(m_hEncoder, pEncodeBuffer->stOutputBfr.hBitstreamBuffer);
-        fflush(m_fOutput);
     }
     else
     {
