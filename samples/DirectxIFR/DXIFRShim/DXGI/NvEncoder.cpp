@@ -661,7 +661,7 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, i
         {
             printf("bitrate changed!\n");
             NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-            NvEncoderLogFile << "Bitrate changed to " << targetBitrate << "\n";
+            NvEncoderLogFile << "Player " << index << " bitrate changed to " << targetBitrate << "\n";
             NvEncoderLogFile.close();
         }
         else

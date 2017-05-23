@@ -99,7 +99,7 @@ std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false, false, false, false }; 
 std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false, false, false, false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
-const int bandwidthPerPlayer = 1500000;
+const int bandwidthPerPlayer = 2000000;
 int totalBandwidthAvailable = 0;
 int sumWeight = 0;
 int playerInputArray[MAX_PLAYERS] = { 0 };
@@ -774,20 +774,25 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-            if (playerInputArray[index] == 3) { // shooting
-                targetBitrate = 5000000;
-            }
-            else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
-                targetBitrate = 2500000;
-            }
-            else if (playerInputArray[index] == 1) { // no input
-                targetBitrate = 500000;
-            }
+            // Adaptive bitrate - independent of other players
+            //if (playerInputArray[index] == 3) { // shooting
+            //    targetBitrate = 5000000;
+            //}
+            //else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+            //    targetBitrate = 2500000;
+            //}
+            //else if (playerInputArray[index] == 1) { // no input
+            //    targetBitrate = 500000;
+            //}
+
+            // Adaptive bitrate - depends on other players
+            float weight = (float)playerInputArray[index] / (float)sumWeight;
+            targetBitrate = (int)(weight * totalBandwidthAvailable);
 
             if (targetBitrate != currentBitrate)
             {
                 NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::app);
-                NvIFREncoderLogFile << "Changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
+                NvIFREncoderLogFile << "Player " << index << " changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
                 NvIFREncoderLogFile.close();
                 nvEncoder.EncodeFrameLoop(bufferArray[index], true, index, targetBitrate);
                 currentBitrate = targetBitrate;
