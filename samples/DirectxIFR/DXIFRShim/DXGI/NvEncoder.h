@@ -108,8 +108,8 @@ public:
     CNvEncoder(int index);
     virtual ~CNvEncoder();
 
-    int                                                  EncodeMain(int index);
-    void                                                 EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, int index);
+    int                                                  EncodeMain(int index, int width, int height, int fps, int initialBitrate);
+    void                                                 EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, int index, int targetBitrate);
     void                                                 ShutdownNvEncoder();
     EncodeConfig                                         encodeConfig;
 

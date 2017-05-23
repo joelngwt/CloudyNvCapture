@@ -486,7 +486,7 @@ NVENCSTATUS loadframe(uint8_t *yuvInput[3], HANDLE hInputYUVFile, uint32_t frmId
 }
 int lumaPlaneSize, chromaPlaneSize;
 
-int CNvEncoder::EncodeMain(int index)
+int CNvEncoder::EncodeMain(int index, int width, int height, int fps, int initialBitrate)
 {
     uint8_t *yuv[3];
     
@@ -498,12 +498,12 @@ int CNvEncoder::EncodeMain(int index)
     memset(&encodeConfig, 0, sizeof(EncodeConfig));
 
     encodeConfig.endFrameIdx = INT_MAX;
-    encodeConfig.bitrate = 5000000;
-    encodeConfig.rcMode = NV_ENC_PARAMS_RC_CBR;
+    encodeConfig.bitrate = initialBitrate;
+    encodeConfig.rcMode = NV_ENC_PARAMS_RC_VBR;
     encodeConfig.gopLength = NVENC_INFINITE_GOPLENGTH;
     encodeConfig.deviceType = NV_ENC_CUDA;
     encodeConfig.codec = NV_ENC_H264;
-    encodeConfig.fps = 30;
+    encodeConfig.fps = fps;
     encodeConfig.qp = 28;
     encodeConfig.i_quant_factor = DEFAULT_I_QFACTOR;
     encodeConfig.b_quant_factor = DEFAULT_B_QFACTOR;
@@ -512,8 +512,8 @@ int CNvEncoder::EncodeMain(int index)
     encodeConfig.presetGUID = NV_ENC_PRESET_LOW_LATENCY_HP_GUID;
     encodeConfig.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
     encodeConfig.isYuv444 = 0;
-    encodeConfig.width = 1280;
-    encodeConfig.height = 720;
+    encodeConfig.width = width;
+    encodeConfig.height = height;
     encodeConfig.vbvSize = 0;
     encodeConfig.numB = 0;
 
@@ -622,7 +622,7 @@ void CNvEncoder::ShutdownNvEncoder()
     Deinitialize(encodeConfig.deviceType);
 }
 
-void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, int index)
+void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, int index, int targetBitrate)
 {
     //numBytesRead = 0;
     //loadframe(yuv, hInput, frm, encodeConfig.width, encodeConfig.height, numBytesRead, encodeConfig.isYuv444);
@@ -650,7 +650,7 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, i
     
         encPicCommand.bBitrateChangePending = true;
         encPicCommand.newVBVSize = 0;
-        encPicCommand.newBitrate = 250000;
+        encPicCommand.newBitrate = targetBitrate;
     
         encPicCommand.bResolutionChangePending = false;
         //encPicCommand.newHeight = 640;
@@ -660,11 +660,17 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, i
         if (status == NV_ENC_SUCCESS)
         {
             printf("bitrate changed!\n");
+            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+            NvEncoderLogFile << "Bitrate changed to " << targetBitrate << "\n";
+            NvEncoderLogFile.close();
         }
         else
         {
             // Common error: NV_ENC_ERR_INVALID_PARAM (== 8)
             printf("Bitrate changing failed! Error is %d\n", status);
+            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+            NvEncoderLogFile << "Bitrate changing failed! Error is " << status << "\n";
+            NvEncoderLogFile.close();
         }
     }
 }

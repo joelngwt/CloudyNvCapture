@@ -762,6 +762,11 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
                 "-listen 1 -vcodec copy -preset ultrafast " \
                 "-an -tune zerolatency " \
                 "-f h264 http://magam001.d1.comp.nus.edu.sg:" << 30000 + index << " 2> FFmpegLog" << index << ".txt";
+    //*StringStream << "ffmpeg " \
+    //            "-y -i - " \
+    //            "-listen 1 -vcodec copy -preset ultrafast " \
+    //            "-an -tune zerolatency " \
+    //            "-f h264 output" << index << ".h264" << " 2> FFmpegLog" << index << ".txt";
 
     m_fOutputArray[index] = _popen(StringStream->str().c_str(), "wb");
 

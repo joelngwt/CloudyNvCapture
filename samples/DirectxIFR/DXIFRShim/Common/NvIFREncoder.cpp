@@ -74,7 +74,7 @@ HANDLE gpuEvent[MAX_PLAYERS];
 uint8_t *bufferArray[MAX_PLAYERS];
 
 // FFmpeg constants
-#define STREAM_FRAME_RATE 30 /* 25 images/s */
+#define STREAM_FRAME_RATE 30 // Number of images per second
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
 const char* encoderName = "h264_nvenc";
 
@@ -639,7 +639,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
     NVIFR_TOSYS_SETUP_PARAMS params = { 0 };
     params.dwVersion = NVIFR_TOSYS_SETUP_PARAMS_VER;
-    //params.eFormat = NVIFR_FORMAT_YUV_444;
     params.eFormat = NVIFR_FORMAT_YUV_420;
     params.eSysStereoFormat = NVIFR_SYS_STEREO_NONE;
     params.dwNBuffers = NUMFRAMESINFLIGHT;
@@ -661,6 +660,14 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
     //SetupFFMPEGServer(index);
 
+    // Initialization of Nvidia Codec SDK parameters
+    std::ofstream NvIFREncoderLogFile;
+    NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::trunc);
+    NvIFREncoderLogFile.close();
+    int currentBitrate = 2500000;
+    int targetBitrate = currentBitrate;
+
+    // To sleep if encoding is going faster than framerate of the game
     UINT uFrameCount = 0;
     DWORD dwTimeZero = timeGetTime();
 
@@ -673,76 +680,77 @@ void NvIFREncoder::EncoderThreadProc(int index)
     time_t idleStartTime = 0;
     codecSetup = avcodec_find_encoder_by_name(encoderName);
 
+    // To read the player input data for adaptive bitrate
     ostringstream oss;
     oss << "G:\\Packaged Games\\414 Development Measure New Instance\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
     CNvEncoder nvEncoder(index);
-    nvEncoder.EncodeMain(index);
+    nvEncoder.EncodeMain(index, bufferWidth, bufferHeight, STREAM_FRAME_RATE, currentBitrate);
 
     while (!bStopEncoder)
     {
-        //fin.open(oss.str());
-        //if (fin.is_open())
-        //{
-        //    fin.seekg(-3, ios::end); // -1 and -2 gets \n on the last line
-        //    fileSize = fin.tellg();
-        //    fin.get(c);
-        //    fin.close();
-        //
-        //    // If we shoot, we should refresh the shooting start time
-        //    if (c == '3' && fileSize != prevFileSize)
-        //    {
-        //        shootingStartTime = std::time(0);
-        //    }
-        //
-        //    // We cannot let any other movement e.g. "c = 2" through if we have recently shot
-        //    if ((std::time(0) - shootingStartTime) < timeBeforeIdle)
-        //    {
-        //        c = '3';
-        //    }
-        //    // No input from player - is idling
-        //    else if (fileSize == prevFileSize)
-        //    {
-        //        if (isIdling == false)
-        //        {
-        //            // Start the countdown
-        //            idleStartTime = std::time(0);
-        //            isIdling = true;
-        //        }
-        //        // We have idled for more than 3 seconds
-        //        else if ((std::time(0) - idleStartTime) >= timeBeforeIdle)
-        //        {
-        //            c = '1';
-        //        }
-        //    }
-        //    // If there is input, allow countdown to restart
-        //    else if (c == '3' || c == '2')
-        //    {
-        //        isIdling = false; // There is input. 
-        //    }
-        //
-        //    prevFileSize = fileSize;
-        //
-        //    playerInputArray[index] = (c - '0');
-        //}
-        //else
-        //{
-        //    LOG_ERROR(logger, "Failed to open file " << index);
-        //}
-        //
-        //// Index 0 will do the summing of the array.
-        //// This will pose problems in the future if player 0 can 
-        //// just leave while the other players are playing.
-        //if (index == 0)
-        //{
-        //    sumWeight = 0;
-        //    for (int i = 0; i < MAX_PLAYERS; i++)
-        //    {
-        //        sumWeight += playerInputArray[i];
-        //    }
-        //}
+        fin.open(oss.str());
+        if (fin.is_open())
+        {
+            fin.seekg(-3, ios::end); // -1 and -2 gets \n on the last line
+            fileSize = fin.tellg();
+            fin.get(c);
+            fin.close();
+        
+            // If we shoot, we should refresh the shooting start time
+            if (c == '3' && fileSize != prevFileSize)
+            {
+                shootingStartTime = std::time(0);
+            }
+        
+            // We cannot let any other movement e.g. "c = 2" through if we have recently shot
+            if ((std::time(0) - shootingStartTime) < timeBeforeIdle)
+            {
+                c = '3';
+            }
+            // No input from player - is idling
+            else if (fileSize == prevFileSize)
+            {
+                if (isIdling == false)
+                {
+                    // Start the countdown
+                    idleStartTime = std::time(0);
+                    isIdling = true;
+                }
+                // We have idled for more than 3 seconds
+                else if ((std::time(0) - idleStartTime) >= timeBeforeIdle)
+                {
+                    c = '1';
+                }
+            }
+            // If there is input, allow countdown to restart
+            else if (c == '3' || c == '2')
+            {
+                isIdling = false; // There is input. 
+            }
+        
+            prevFileSize = fileSize;
+        
+            playerInputArray[index] = (c - '0');
+        }
+        else
+        {
+            LOG_ERROR(logger, "Failed to open file " << index);
+        }
+        
+        // Index 0 will do the summing of the array.
+        // This will pose problems in the future if player 0 can 
+        // just leave while the other players are playing.
+        if (index == 0)
+        {
+            sumWeight = 0;
+            for (int i = 0; i < MAX_PLAYERS; i++)
+            {
+                sumWeight += playerInputArray[i];
+            }
+        }
 
         if (!UpdateBackBuffer())
         {
@@ -766,10 +774,29 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-            nvEncoder.EncodeFrameLoop(bufferArray[index], false, index);
+            if (playerInputArray[index] == 3) { // shooting
+                targetBitrate = 5000000;
+            }
+            else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
+                targetBitrate = 2500000;
+            }
+            else if (playerInputArray[index] == 1) { // no input
+                targetBitrate = 500000;
+            }
 
+            if (targetBitrate != currentBitrate)
+            {
+                NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::app);
+                NvIFREncoderLogFile << "Changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
+                NvIFREncoderLogFile.close();
+                nvEncoder.EncodeFrameLoop(bufferArray[index], true, index, targetBitrate);
+                currentBitrate = targetBitrate;
+            }
+            else
+            {
+                nvEncoder.EncodeFrameLoop(bufferArray[index], false, index, targetBitrate);
+            }
             //write_video_frame(ocArray[index], /*&ostArray[index], */bufferArray[index], index);
-            //fwrite(&frameBuffer, bufferWidth*bufferHeight*1.5, 1, pipe0);
         }
         else
         {
