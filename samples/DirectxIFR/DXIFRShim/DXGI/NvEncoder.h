@@ -105,13 +105,13 @@ typedef enum
 class CNvEncoder
 {
 public:
-    CNvEncoder();
+    CNvEncoder(int index);
     virtual ~CNvEncoder();
 
-    int                                                  EncodeMain();
-    void                                                 EncodeFrameLoop(uint8_t *buffer);
+    int                                                  EncodeMain(int index);
+    void                                                 EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, int index);
+    void                                                 ShutdownNvEncoder();
     EncodeConfig                                         encodeConfig;
-    //int numBytesRead;
 
 protected:
     CNvHWEncoder                                        *m_pNvHWEncoder;
@@ -130,7 +130,7 @@ protected:
 
 protected:
     NVENCSTATUS                                          Deinitialize(uint32_t devicetype);
-    NVENCSTATUS                                          EncodeFrame(EncodeFrameConfig *pEncodeFrame, bool bFlush = false, uint32_t width = 0, uint32_t height = 0);
+    NVENCSTATUS                                          EncodeFrame(EncodeFrameConfig *pEncodeFrame, int index, bool bFlush = false, uint32_t width = 0, uint32_t height = 0);
     NVENCSTATUS                                          InitD3D9(uint32_t deviceID = 0);
     NVENCSTATUS                                          InitD3D11(uint32_t deviceID = 0);
     NVENCSTATUS                                          InitD3D10(uint32_t deviceID = 0);
@@ -138,7 +138,7 @@ protected:
     NVENCSTATUS                                          AllocateIOBuffers(uint32_t uInputWidth, uint32_t uInputHeight, uint32_t isYuv444);
     NVENCSTATUS                                          ReleaseIOBuffers();
     unsigned char*                                       LockInputBuffer(void * hInputSurface, uint32_t *pLockedPitch);
-    NVENCSTATUS                                          FlushEncoder();
+    NVENCSTATUS                                          FlushEncoder(int index);
     NVENCSTATUS                                          RunMotionEstimationOnly(MEOnlyConfig *pMEOnly, bool bFlush);
 };
 

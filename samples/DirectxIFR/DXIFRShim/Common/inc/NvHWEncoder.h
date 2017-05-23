@@ -147,7 +147,8 @@ class CNvHWEncoder
 {
 public:
     uint32_t                                             m_EncodeIdx;
-    FILE                                                *m_fOutput;
+    //FILE                                                *m_fOutput;
+    FILE                                                *m_fOutputArray[4];
     uint32_t                                             m_uMaxWidth;
     uint32_t                                             m_uMaxHeight;
     uint32_t                                             m_uCurWidth;
@@ -200,7 +201,7 @@ public:
     NVENCSTATUS NvEncReconfigureEncoder(const NvEncPictureCommand *pEncPicCommand);
     NVENCSTATUS NvEncFlushEncoderQueue(void *hEOSEvent);
 
-    CNvHWEncoder();
+    CNvHWEncoder(int index);
     virtual ~CNvHWEncoder();
     NVENCSTATUS                                          Initialize(void* device, NV_ENC_DEVICE_TYPE deviceType);
     NVENCSTATUS                                          Deinitialize();
@@ -208,9 +209,9 @@ public:
                                                                           uint32_t width, uint32_t height,
                                                                           NV_ENC_PIC_STRUCT ePicStruct = NV_ENC_PIC_STRUCT_FRAME,
                                                                           int8_t *qpDeltaMapArray = NULL, uint32_t qpDeltaMapArraySize = 0);
-    NVENCSTATUS                                          CreateEncoder(const EncodeConfig *pEncCfg);
+    NVENCSTATUS                                          CreateEncoder(const EncodeConfig *pEncCfg, int index);
     GUID                                                 GetPresetGUID(char* encoderPreset, int codec);
-    NVENCSTATUS                                          ProcessOutput(const EncodeBuffer *pEncodeBuffer);
+    NVENCSTATUS                                          ProcessOutput(const EncodeBuffer *pEncodeBuffer, int index);
     NVENCSTATUS                                          FlushEncoder();
     NVENCSTATUS                                          ValidateEncodeGUID(GUID inputCodecGuid);
     NVENCSTATUS                                          ValidatePresetGUID(GUID presetCodecGuid, GUID inputCodecGuid);

@@ -678,8 +678,8 @@ void NvIFREncoder::EncoderThreadProc(int index)
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
-    CNvEncoder nvEncoder;
-    nvEncoder.EncodeMain();
+    CNvEncoder nvEncoder(index);
+    nvEncoder.EncodeMain(index);
 
     while (!bStopEncoder)
     {
@@ -766,7 +766,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
             }
             ResetEvent(gpuEvent[index]);
 
-            nvEncoder.EncodeFrameLoop(bufferArray[index]);
+            nvEncoder.EncodeFrameLoop(bufferArray[index], false, index);
 
             //write_video_frame(ocArray[index], /*&ostArray[index], */bufferArray[index], index);
             //fwrite(&frameBuffer, bufferWidth*bufferHeight*1.5, 1, pipe0);
@@ -787,6 +787,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
     }
     LOG_DEBUG(logger, "Quit encoding loop");
 
+    nvEncoder.ShutdownNvEncoder();
     CleanupLibavCodec(index);
     CleanupNvIFR();
 }

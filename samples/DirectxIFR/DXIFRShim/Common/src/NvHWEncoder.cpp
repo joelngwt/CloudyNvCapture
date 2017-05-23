@@ -241,19 +241,19 @@ NVENCSTATUS CNvHWEncoder::NvRunMotionEstimationOnly(EncodeBuffer *pEncodeBuffer[
     stMEOnlyParams.outputMV = pEncodeBuffer[0]->stOutputBfr.hBitstreamBuffer;
     nvStatus = m_pEncodeAPI->nvEncRunMotionEstimationOnly(m_hEncoder, &stMEOnlyParams);
 
-    if (m_fOutput)
+    if (m_fOutputArray[0])
     {
         unsigned int numMBs = ((m_uMaxWidth +15) >> 4) * ((m_uMaxHeight + 15) >> 4);
-        fprintf(m_fOutput,"Motion Vectors for input frame = %d, reference frame = %d\n", pMEOnly->inputFrameIndex, pMEOnly->referenceFrameIndex);
+        fprintf(m_fOutputArray[0], "Motion Vectors for input frame = %d, reference frame = %d\n", pMEOnly->inputFrameIndex, pMEOnly->referenceFrameIndex);
         NV_ENC_H264_MV_DATA *outputMV = (NV_ENC_H264_MV_DATA *)stMEOnlyParams.outputMV;
         for (unsigned int i = 0; i < numMBs; i++)
         {
-            fprintf(m_fOutput, "block = %d, mb_type = %d, partitionType = %d, MV[0].x = %d, MV[0].y = %d, MV[1].x = %d, MV[1].y = %d, MV[2].x = %d, MV[2].y = %d, MV[3].x = %d, MV[3].y = %d, cost=%d ", \
+            fprintf(m_fOutputArray[0], "block = %d, mb_type = %d, partitionType = %d, MV[0].x = %d, MV[0].y = %d, MV[1].x = %d, MV[1].y = %d, MV[2].x = %d, MV[2].y = %d, MV[3].x = %d, MV[3].y = %d, cost=%d ", \
                 i, outputMV[i].mb_type, outputMV[i].partitionType, outputMV[i].MV[0].mvx, outputMV[i].MV[0].mvy, outputMV[i].MV[1].mvx, outputMV[i].MV[1].mvy, \
                 outputMV[i].MV[2].mvx, outputMV[i].MV[2].mvy, outputMV[i].MV[3].mvx, outputMV[i].MV[3].mvy, outputMV[i].MBCost);
-            fprintf(m_fOutput, "\n");
+            fprintf(m_fOutputArray[0], "\n");
         }
-        fprintf(m_fOutput, "\n");
+        fprintf(m_fOutputArray[0], "\n");
     }
     return nvStatus;
 }
@@ -596,13 +596,13 @@ NVENCSTATUS CNvHWEncoder::NvEncReconfigureEncoder(const NvEncPictureCommand *pEn
     return nvStatus;
 }
 
-CNvHWEncoder::CNvHWEncoder()
+CNvHWEncoder::CNvHWEncoder(int index)
 {
     m_hEncoder = NULL;
     m_bEncoderInitialized = false;
     m_pEncodeAPI = NULL;
     m_hinstLib = NULL;
-    m_fOutput = NULL;
+    m_fOutputArray[index] = NULL;
     m_EncodeIdx = 0;
     m_uCurWidth = 0;
     m_uCurHeight = 0;
@@ -727,7 +727,7 @@ NVENCSTATUS CNvHWEncoder::ValidatePresetGUID(GUID inputPresetGuid, GUID inputCod
         return NV_ENC_ERR_INVALID_PARAM;
 }
 
-NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
+NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
@@ -754,23 +754,18 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg)
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
-    m_fOutput = pEncCfg->fOutput;
+    m_fOutputArray[index] = pEncCfg->fOutput;
 
     std::stringstream *StringStream = new std::stringstream();
     *StringStream << "ffmpeg " \
                 "-i - " \
                 "-listen 1 -vcodec copy -preset ultrafast " \
                 "-an -tune zerolatency " \
-                "-f h264 http://magam001.d1.comp.nus.edu.sg:30000 2> FFmpegLog.txt";
-    //*StringStream << "ffmpeg -y -f rawvideo -pix_fmt yuv420p -s 1280x720" \
-    //    " -re -i - " \
-    //    "-listen 1 -c:v libx264 -threads 1 -preset ultrafast " \
-    //    "-an -tune zerolatency -x264opts crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1 " \
-    //    "-f mpegts http://magam001.d1.comp.nus.edu.sg:30000" << " 2> FFmpegLog.txt";
+                "-f h264 http://magam001.d1.comp.nus.edu.sg:" << 30000 + index << " 2> FFmpegLog" << index << ".txt";
 
-    m_fOutput = _popen(StringStream->str().c_str(), "wb");
+    m_fOutputArray[index] = _popen(StringStream->str().c_str(), "wb");
 
-    if (!pEncCfg->width || !pEncCfg->height || !m_fOutput)
+    if (!pEncCfg->width || !pEncCfg->height || !m_fOutputArray[index])
     {
         NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
         NvEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
@@ -993,7 +988,7 @@ GUID CNvHWEncoder::GetPresetGUID(char* encoderPreset, int codec)
     return presetGUID;
 }
 
-NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer)
+NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer, int index)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
@@ -1026,7 +1021,7 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer)
     nvStatus = m_pEncodeAPI->nvEncLockBitstream(m_hEncoder, &lockBitstreamData);
     if (nvStatus == NV_ENC_SUCCESS)
     {
-        fwrite(lockBitstreamData.bitstreamBufferPtr, 1, lockBitstreamData.bitstreamSizeInBytes, m_fOutput);
+        fwrite(lockBitstreamData.bitstreamBufferPtr, 1, lockBitstreamData.bitstreamSizeInBytes, m_fOutputArray[index]);
         nvStatus = m_pEncodeAPI->nvEncUnlockBitstream(m_hEncoder, pEncodeBuffer->stOutputBfr.hBitstreamBuffer);
     }
     else
