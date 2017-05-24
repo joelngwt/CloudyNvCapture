@@ -887,7 +887,7 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
                 "-i - " \
                 "-listen 1 -threads 1 -vcodec copy -preset ultrafast " \
                 "-an -tune zerolatency " \
-                "-f h264 http://magam001.d1.comp.nus.edu.sg:" << 30000 + index << " 2> FFmpegLog" << index << ".txt";
+                "-f h264 http://magam001.d1.comp.nus.edu.sg:" << 30000 + index;
     //*StringStream << "ffmpeg " \
     //            "-y -i - " \
     //            "-listen 1 -vcodec copy -preset ultrafast " \

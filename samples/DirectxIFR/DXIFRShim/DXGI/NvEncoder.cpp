@@ -706,13 +706,6 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, i
     
         NVENCSTATUS status = m_pNvHWEncoder->NvEncReconfigureEncoder(&encPicCommand);
         if (status != NV_ENC_SUCCESS)
-        //{
-        //    printf("bitrate changed!\n");
-        //    NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        //    NvEncoderLogFile << "Player " << index << " bitrate changed to " << targetBitrate << "\n";
-        //    NvEncoderLogFile.close();
-        //}
-        //else
         {
             // Common error: NV_ENC_ERR_INVALID_PARAM (== 8)
             printf("Bitrate changing failed! Error is %d\n", status);
