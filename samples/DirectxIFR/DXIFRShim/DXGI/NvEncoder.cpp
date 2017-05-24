@@ -109,6 +109,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuInit error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuResult != CUDA_SUCCESS.\n";
+        NvEncoderLogFile.close();
         assert(0);
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
@@ -117,6 +120,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuDeviceGetCount error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuDeviceGetCount error.\n";
+        NvEncoderLogFile.close();
         assert(0);
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
@@ -128,6 +134,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (deviceID >(unsigned int)deviceCount - 1)
     {
         PRINTERR("Invalid Device Id = %d\n", deviceID);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "Invalid Device Id.\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_ENCODERDEVICE;
     }
 
@@ -135,6 +144,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuDeviceGet error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuDeviceGet error.\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
 
@@ -142,12 +154,18 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuDeviceComputeCapability error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuDeviceComputeCapability error.\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
 
     if (((SMmajor << 4) + SMminor) < 0x30)
     {
         PRINTERR("GPU %d does not have NVENC capabilities exiting\n", deviceID);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "GPU does not have NVENC capabilities exiting.\n";
+        NvEncoderLogFile.close();
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
 
@@ -155,6 +173,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuCtxCreate error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuCtxCreate error.\n";
+        NvEncoderLogFile.close();
         assert(0);
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
@@ -163,6 +184,9 @@ NVENCSTATUS CNvEncoder::InitCuda(uint32_t deviceID)
     if (cuResult != CUDA_SUCCESS)
     {
         PRINTERR("cuCtxPopCurrent error:0x%x\n", cuResult);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "cuCtxPopCurrent error.\n";
+        NvEncoderLogFile.close();
         assert(0);
         return NV_ENC_ERR_NO_ENCODE_DEVICE;
     }
@@ -291,7 +315,12 @@ NVENCSTATUS CNvEncoder::AllocateIOBuffers(uint32_t uInputWidth, uint32_t uInputH
     {
         nvStatus = m_pNvHWEncoder->NvEncCreateInputBuffer(uInputWidth, uInputHeight, &m_stEncodeBuffer[i].stInputBfr.hInputSurface, isYuv444);
         if (nvStatus != NV_ENC_SUCCESS)
+        {
+            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+            NvEncoderLogFile << "m_pNvHWEncoder->NvEncCreateInputBuffer error.\n";
+            NvEncoderLogFile.close();
             return nvStatus;
+        }
 
         m_stEncodeBuffer[i].stInputBfr.bufferFmt = isYuv444 ? NV_ENC_BUFFER_FORMAT_YUV444_PL : NV_ENC_BUFFER_FORMAT_NV12_PL;
         //m_stEncodeBuffer[i].stInputBfr.bufferFmt = NV_ENC_BUFFER_FORMAT_IYUV_PL;
@@ -386,10 +415,17 @@ NVENCSTATUS CNvEncoder::ReleaseIOBuffers()
 
 NVENCSTATUS CNvEncoder::FlushEncoder(int index)
 {
+    NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+    NvEncoderLogFile << "FlushEncoder() error.\n";
+    NvEncoderLogFile.close();
+
     NVENCSTATUS nvStatus = m_pNvHWEncoder->NvEncFlushEncoderQueue(m_stEOSOutputBfr.hOutputEvent);
     if (nvStatus != NV_ENC_SUCCESS)
     {
         assert(0);
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->NvEncFlushEncoderQueue error.\n";
+        NvEncoderLogFile.close();
         return nvStatus;
     }
 
@@ -403,6 +439,9 @@ NVENCSTATUS CNvEncoder::FlushEncoder(int index)
 #if defined(NV_WINDOWS)
     if (WaitForSingleObject(m_stEOSOutputBfr.hOutputEvent, 500) != WAIT_OBJECT_0)
     {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "WaitForSingleObject(m_stEOSOutputBfr.hOutputEvent, 500) error.\n";
+        NvEncoderLogFile.close();
         assert(0);
         nvStatus = NV_ENC_ERR_GENERIC;
     }
@@ -413,6 +452,10 @@ NVENCSTATUS CNvEncoder::FlushEncoder(int index)
 
 NVENCSTATUS CNvEncoder::Deinitialize(uint32_t devicetype)
 {
+    NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+    NvEncoderLogFile << "Deinitialize() error.\n";
+    NvEncoderLogFile.close();
+
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
     ReleaseIOBuffers();
@@ -441,7 +484,12 @@ NVENCSTATUS CNvEncoder::Deinitialize(uint32_t devicetype)
             CUresult cuResult = CUDA_SUCCESS;
             cuResult = cuCtxDestroy((CUcontext)m_pDevice);
             if (cuResult != CUDA_SUCCESS)
+            {
+                NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+                NvEncoderLogFile << "cuCtxDestroy() error.\n";
+                NvEncoderLogFile.close();
                 PRINTERR("cuCtxDestroy error:0x%x\n", cuResult);
+            }
         }
 
         m_pDevice = NULL;
@@ -657,14 +705,14 @@ void CNvEncoder::EncodeFrameLoop(uint8_t *buffer, bool isReconfiguringBitrate, i
         //encPicCommand.newWidth = 480;
     
         NVENCSTATUS status = m_pNvHWEncoder->NvEncReconfigureEncoder(&encPicCommand);
-        if (status == NV_ENC_SUCCESS)
-        {
-            printf("bitrate changed!\n");
-            NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-            NvEncoderLogFile << "Player " << index << " bitrate changed to " << targetBitrate << "\n";
-            NvEncoderLogFile.close();
-        }
-        else
+        if (status != NV_ENC_SUCCESS)
+        //{
+        //    printf("bitrate changed!\n");
+        //    NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        //    NvEncoderLogFile << "Player " << index << " bitrate changed to " << targetBitrate << "\n";
+        //    NvEncoderLogFile.close();
+        //}
+        //else
         {
             // Common error: NV_ENC_ERR_INVALID_PARAM (== 8)
             printf("Bitrate changing failed! Error is %d\n", status);
@@ -684,6 +732,9 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, int index, 
     if (bFlush)
     {
         // Does not run
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "if (bFlush).\n";
+        NvEncoderLogFile.close();
         FlushEncoder(index);
         return NV_ENC_SUCCESS;
     }
@@ -739,5 +790,11 @@ NVENCSTATUS CNvEncoder::EncodeFrame(EncodeFrameConfig *pEncodeFrame, int index, 
         return nvStatus;
     }
     nvStatus = m_pNvHWEncoder->NvEncEncodeFrame(pEncodeBuffer, NULL, width, height, (NV_ENC_PIC_STRUCT)m_uPicStruct);
+    if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
+        NvEncoderLogFile << "m_pNvHWEncoder->NvEncEncodeFrame\n";
+        NvEncoderLogFile.close();
+    }
     return nvStatus;
 }

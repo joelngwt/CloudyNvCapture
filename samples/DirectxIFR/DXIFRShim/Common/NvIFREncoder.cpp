@@ -54,8 +54,7 @@ extern simplelogger::Logger *logger;
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
     AVStream *st;
-    AVCodecContext *enc0;
-    AVCodecContext *enc1;
+    AVCodecContext *enc;
 
     AVFrame *frame;
     AVFrame *tmp_frame;
@@ -95,19 +94,12 @@ LONGLONG g_llPerfFrequency1 = 0;
 BOOL g_timeInitialized1 = FALSE;
 
 // Bit rate switching variables
-std::atomic_bool isThreadStarted[MAX_PLAYERS] = { false, false, false, false }; // to ensure only 1 thread is working to setup AVCodecContext at any point in time
-std::atomic_bool isThreadComplete[MAX_PLAYERS] = { false, false, false, false }; // to ensure that AVCodecContext is fully set up by the thread before it is properly applied
 AVCodecContext *codecContextArray[MAX_PLAYERS] = {}; // to store the new AVCodecContext created by the thread
 setupAVCodecStruct st[MAX_PLAYERS];
 const int bandwidthPerPlayer = 2000000;
 int totalBandwidthAvailable = 0;
 int sumWeight = 0;
 int playerInputArray[MAX_PLAYERS] = { 0 };
-int oldSumWeight[MAX_PLAYERS] = { 0 };
-int contextToUse[MAX_PLAYERS] = { 0 };
-int freeContextComplete[MAX_PLAYERS] = { true, true, true, true };
-AVCodec* codecSetup;
-int oldInput[MAX_PLAYERS] = { 0 };
 
 #define QPC(Int64) QueryPerformanceCounter((LARGE_INTEGER*)&Int64)
 #define QPF(Int64) QueryPerformanceFrequency((LARGE_INTEGER*)&Int64)
@@ -136,116 +128,60 @@ static inline int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_b
     return av_interleaved_write_frame(fmt_ctx, pkt);
 }
 
-AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bitrate, int contextToUse, int index)
+AVCodecContext *setupAVCodecContext(AVCodec **codec, AVFormatContext *oc, int bitrate, int index)
 {
     AVRational time_base = { 1, STREAM_FRAME_RATE };
     AVRational framerate = { STREAM_FRAME_RATE, 1 };
 
-    if (contextToUse == 0)
-    {
-        ostArray[index].enc0 = avcodec_alloc_context3(*codec);
-        if (!ostArray[index].enc0) {
-            LOG_WARN(logger, "Could not alloc an encoding context");
-            exit(1);
-        }
-
-        // This is in bits
-        ostArray[index].enc0->bit_rate = bitrate;
-        /* Resolution must be a multiple of two. */
-        ostArray[index].enc0->width = bufferWidth;
-        ostArray[index].enc0->height = bufferHeight;
-        /* timebase: This is the fundamental unit of time (in seconds) in terms
-        * of which frame timestamps are represented. For fixed-fps content,
-        * timebase should be 1/framerate and timestamp increments should be
-        * identical to 1. */
-        ostArray[index].st->time_base = time_base;
-        ostArray[index].enc0->time_base = ostArray[index].st->time_base;
-        ostArray[index].enc0->delay = 0;
-        ostArray[index].enc0->framerate = framerate;
-        ostArray[index].enc0->has_b_frames = 0;
-        ostArray[index].enc0->max_b_frames = 0;
-        ostArray[index].enc0->rc_min_vbv_overflow_use = (float)(ostArray[index].enc0->bit_rate / STREAM_FRAME_RATE);
-        ostArray[index].enc0->refs = 1; // ref=1
-
-        ostArray[index].enc0->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
-        ostArray[index].enc0->pix_fmt = STREAM_PIX_FMT;
-
-        // GPU nvenc_h264 parameters
-        av_opt_set(ostArray[index].enc0->priv_data, "preset", "llhp", 0);
-        av_opt_set(ostArray[index].enc0->priv_data, "delay", "0", 0);
-
-        // CPU encoding paramaters (h264)
-        //av_opt_set(ostArray[index].enc0->priv_data, "preset", "ultrafast", 0);
-        //av_opt_set(ostArray[index].enc0->priv_data, "tune", "zerolatency", 0);
-        //av_opt_set(ostArray[index].enc0->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
-
-        /* Some formats want stream headers to be separate. */
-        if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
-            ostArray[index].enc0->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-        }
-
-        /* open the codec */
-        int ret = avcodec_open2(ostArray[index].enc0, *codec, NULL);
-        if (ret < 0) {
-            LOG_WARN(logger, "Could not open video codec");
-            exit(1);
-        }
-
-        return ostArray[index].enc0;
+    ostArray[index].enc = avcodec_alloc_context3(*codec);
+    if (!ostArray[index].enc) {
+        LOG_WARN(logger, "Could not alloc an encoding context");
+        exit(1);
     }
 
-    else if (contextToUse == 1)
-    {
-        ostArray[index].enc1 = avcodec_alloc_context3(*codec); // 0.00011456
-        if (!ostArray[index].enc1) {
-            LOG_WARN(logger, "Could not alloc an encoding context");
-            exit(1);
-        }
+    // This is in bits
+    ostArray[index].enc->bit_rate = bitrate;
+    /* Resolution must be a multiple of two. */
+    ostArray[index].enc->width = bufferWidth;
+    ostArray[index].enc->height = bufferHeight;
+    /* timebase: This is the fundamental unit of time (in seconds) in terms
+    * of which frame timestamps are represented. For fixed-fps content,
+    * timebase should be 1/framerate and timestamp increments should be
+    * identical to 1. */
+    ostArray[index].st->time_base = time_base;
+    ostArray[index].enc->time_base = ostArray[index].st->time_base;
+    ostArray[index].enc->delay = 0;
+    ostArray[index].enc->framerate = framerate;
+    ostArray[index].enc->has_b_frames = 0;
+    ostArray[index].enc->max_b_frames = 0;
+    ostArray[index].enc->rc_min_vbv_overflow_use = (float)(ostArray[index].enc->bit_rate / STREAM_FRAME_RATE);
+    ostArray[index].enc->refs = 1; // ref=1
 
-        // This is in bits
-        ostArray[index].enc1->bit_rate = bitrate;
-        /* Resolution must be a multiple of two. */
-        ostArray[index].enc1->width = bufferWidth;
-        ostArray[index].enc1->height = bufferHeight;
-        /* timebase: This is the fundamental unit of time (in seconds) in terms
-        * of which frame timestamps are represented. For fixed-fps content,
-        * timebase should be 1/framerate and timestamp increments should be
-        * identical to 1. */
-        ostArray[index].st->time_base = time_base;
-        ostArray[index].enc1->time_base = ostArray[index].st->time_base;
-        ostArray[index].enc1->delay = 0;
-        ostArray[index].enc1->framerate = framerate;
-        ostArray[index].enc1->has_b_frames = 0;
-        ostArray[index].enc1->max_b_frames = 0;
-        ostArray[index].enc1->rc_min_vbv_overflow_use = (float)(ostArray[index].enc1->bit_rate / STREAM_FRAME_RATE);
-        ostArray[index].enc1->refs = 1; // ref=1
+    ostArray[index].enc->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
+    ostArray[index].enc->pix_fmt = STREAM_PIX_FMT;
 
-        ostArray[index].enc1->gop_size = 30; // emit one intra frame every 30 frames at most. keyint=30
-        ostArray[index].enc1->pix_fmt = STREAM_PIX_FMT;
+    // GPU nvenc_h264 parameters
+    av_opt_set(ostArray[index].enc->priv_data, "preset", "llhp", 0);
+    av_opt_set(ostArray[index].enc->priv_data, "delay", "0", 0);
 
-        // GPU nvenc_h264 parameters
-        av_opt_set(ostArray[index].enc1->priv_data, "preset", "llhp", 0);
-        av_opt_set(ostArray[index].enc1->priv_data, "delay", "0", 0);
+    // CPU encoding paramaters (h264)
+    //av_opt_set(ostArray[index].enc0->priv_data, "preset", "ultrafast", 0);
+    //av_opt_set(ostArray[index].enc0->priv_data, "tune", "zerolatency", 0);
+    //av_opt_set(ostArray[index].enc0->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
 
-        // CPU encoding paramaters (h264)
-        //av_opt_set(ostArray[index].enc0->priv_data, "preset", "ultrafast", 0);
-        //av_opt_set(ostArray[index].enc0->priv_data, "tune", "zerolatency", 0);
-        //av_opt_set(ostArray[index].enc0->priv_data, "x264opts", "crf=2:vbv-maxrate=4000:vbv-bufsize=160:intra-refresh=1:slice-max-size=2000:keyint=30:ref=1", 0);
-
-        /* Some formats want stream headers to be separate. */
-        if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
-            ostArray[index].enc1->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-        }
-
-        /* open the codec */
-        int ret = avcodec_open2(ostArray[index].enc1, *codec, NULL);
-        if (ret < 0) {
-            LOG_WARN(logger, "Could not open video codec");
-            exit(1);
-        }
-
-        return ostArray[index].enc1;
+    /* Some formats want stream headers to be separate. */
+    if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
+        ostArray[index].enc->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }
+
+    /* open the codec */
+    int ret = avcodec_open2(ostArray[index].enc, *codec, NULL);
+    if (ret < 0) {
+        LOG_WARN(logger, "Could not open video codec");
+        exit(1);
+    }
+
+    return ostArray[index].enc;
 }
 
 /* Add an output stream. */
@@ -268,7 +204,7 @@ static void add_stream(AVFormatContext *oc, AVCodec **codec, enum AVCodecID code
     }
     ostArray[index].st->id = oc->nb_streams - 1;
 
-    c = setupAVCodecContext(codec, oc, 1250000, contextToUse[index], index);
+    c = setupAVCodecContext(codec, oc, 1250000, index);
 }
 
 /**************************************************************/
@@ -301,14 +237,8 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, int index)
 {
     int ret;
     AVCodecContext *c;
-    if (contextToUse[index] == 0)
-    {
-        c = ostArray[index].enc0;
-    }
-    else
-    {
-        c = ostArray[index].enc1;
-    }
+
+    c = ostArray[index].enc;
 
     /* allocate and init a re-usable frame */
     ostArray[index].frame = alloc_picture(c->pix_fmt, c->width, c->height);
@@ -337,50 +267,6 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, int index)
     }
 }
 
-void avcodec_free_context_proc(void* args)
-{
-    int index = (int)args;
-
-    if (contextToUse[index] == 1)
-    {
-        avcodec_free_context(&ostArray[index].enc0);
-    }
-    else
-    {
-        avcodec_free_context(&ostArray[index].enc1);
-    }
-    freeContextComplete[index] = true;
-    _endthread();
-}
-
-void setupAVCodecContextProc(void* args)
-{
-    int index = (int)args;
-    //float weight = (float)playerInputArray[index] / (float)sumWeight;
-    int bitrate;// = (int)(weight * totalBandwidthAvailable);
-
-    if (playerInputArray[index] == 3) { // shooting
-        bitrate = 1500000;
-    }
-    else if (playerInputArray[index] == 2) { // mouse movement or any other keyboard key
-        bitrate = 1200000;
-    }
-    else if (playerInputArray[index] == 1) { // no input
-        bitrate = 700000;
-    }
-
-    while (freeContextComplete[index] == false)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
-    // This will set up context for the other ost->enc (the one currently not in use)
-    codecContextArray[st[index].playerIndex] = setupAVCodecContext(&codecSetup, &st[index].oc, bitrate, 1 - contextToUse[index], index);
-
-    isThreadComplete[st[index].playerIndex] = true;
-    _endthread();
-}
-
 /*
 * encode one video frame and send it to the muxer
 * return 1 when encoding is finished, 0 otherwise
@@ -391,51 +277,6 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
     int got_packet = 0;
     AVPacket pkt = { 0 };
 
-    if (playerInputArray[index] != oldInput[index] && isThreadStarted[index] == false) {
-        st[index].oc = *oc;
-        st[index].playerIndex = index;
-
-        HANDLE setupThread = (HANDLE)_beginthread(&setupAVCodecContextProc, 0, (void*)index);
-        BOOL success = SetThreadPriority(setupThread, THREAD_PRIORITY_HIGHEST);
-
-        if (success == FALSE)
-        {
-            LOG_WARN(logger, "Set priority of setupThread failed!");
-        }
-
-        oldInput[index] = playerInputArray[index];
-        isThreadStarted[index] = true;
-    }
-
-    // Only swap in the new AVCodecContext when the thread is done
-    if (isThreadComplete[index] == true)
-    {
-        // Context 0 is currently in use. Context 1 has been set up by the thread and is ready
-        if (contextToUse[index] == 0)
-        {
-            ostArray[index].enc1 = codecContextArray[index];
-
-        }
-        // Context 1 is currently in use. Context 0 has been set up by the thread and is ready
-        else
-        {
-            ostArray[index].enc0 = codecContextArray[index];
-        }
-
-        contextToUse[index] = 1 - contextToUse[index]; // other context is ready to be used
-
-        freeContextComplete[index] = false;
-        HANDLE closingThread = (HANDLE)_beginthread(&avcodec_free_context_proc, 0, (void*)index);
-        BOOL success = SetThreadPriority(closingThread, THREAD_PRIORITY_HIGHEST);
-        if (success == FALSE)
-        {
-            LOG_WARN(logger, "Set priority of closingThread failed!");
-        }
-
-        isThreadStarted[index] = false; // Ready to let thread start again if necessary
-        isThreadComplete[index] = false; // Ready to let thread start again if necessary
-    }
-
     ostArray[index].frame->width = bufferWidth;
     ostArray[index].frame->height = bufferHeight;
     ostArray[index].frame->format = STREAM_PIX_FMT;
@@ -445,28 +286,14 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
     av_init_packet(&pkt);
 
     /* encode the image */
-    if (contextToUse[index] == 0)
-    {
-        ret = avcodec_encode_video2(ostArray[index].enc0, &pkt, ostArray[index].frame, &got_packet);
-    }
-    else
-    {
-        ret = avcodec_encode_video2(ostArray[index].enc1, &pkt, ostArray[index].frame, &got_packet);
-    }
+    ret = avcodec_encode_video2(ostArray[index].enc, &pkt, ostArray[index].frame, &got_packet);
     if (ret < 0) {
         LOG_WARN(logger, "Error encoding video frame");
         exit(1);
     }
 
     if (got_packet) {
-        if (contextToUse[index] == 0)
-        {
-            ret = write_frame(oc, &ostArray[index].enc0->time_base, ostArray[index].st, &pkt);
-        }
-        else
-        {
-            ret = write_frame(oc, &ostArray[index].enc1->time_base, ostArray[index].st, &pkt);
-        }
+        ret = write_frame(oc, &ostArray[index].enc->time_base, ostArray[index].st, &pkt);
     }
     else {
         ret = 0;
@@ -486,8 +313,7 @@ static inline int write_video_frame(AVFormatContext *oc, uint8_t *buffer, int in
 
 static void close_stream(int index)
 {
-    avcodec_free_context(&ostArray[index].enc0);
-    avcodec_free_context(&ostArray[index].enc1);
+    avcodec_free_context(&ostArray[index].enc);
     av_frame_free(&ostArray[index].frame);
     av_frame_free(&ostArray[index].tmp_frame);
 }
@@ -661,9 +487,9 @@ void NvIFREncoder::EncoderThreadProc(int index)
     //SetupFFMPEGServer(index);
 
     // Initialization of Nvidia Codec SDK parameters
-    std::ofstream NvIFREncoderLogFile;
-    NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::trunc);
-    NvIFREncoderLogFile.close();
+   // std::ofstream NvIFREncoderLogFile;
+   // NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::trunc);
+   // NvIFREncoderLogFile.close();
     int currentBitrate = 2500000;
     int targetBitrate = currentBitrate;
 
@@ -678,7 +504,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
     bool isIdling = false;
     time_t shootingStartTime = std::time(0);
     time_t idleStartTime = 0;
-    codecSetup = avcodec_find_encoder_by_name(encoderName);
 
     // To read the player input data for adaptive bitrate
     ostringstream oss;
@@ -791,9 +616,9 @@ void NvIFREncoder::EncoderThreadProc(int index)
 
             if (targetBitrate != currentBitrate)
             {
-                NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::app);
-                NvIFREncoderLogFile << "Player " << index << " changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
-                NvIFREncoderLogFile.close();
+                //NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::app);
+                //NvIFREncoderLogFile << "Player " << index << " changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
+                //NvIFREncoderLogFile.close();
                 nvEncoder.EncodeFrameLoop(bufferArray[index], true, index, targetBitrate);
                 currentBitrate = targetBitrate;
             }
