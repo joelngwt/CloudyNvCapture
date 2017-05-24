@@ -487,9 +487,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
     //SetupFFMPEGServer(index);
 
     // Initialization of Nvidia Codec SDK parameters
-   // std::ofstream NvIFREncoderLogFile;
-   // NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::trunc);
-   // NvIFREncoderLogFile.close();
     int currentBitrate = 2500000;
     int targetBitrate = currentBitrate;
 
@@ -506,8 +503,10 @@ void NvIFREncoder::EncoderThreadProc(int index)
     time_t idleStartTime = 0;
 
     // To read the player input data for adaptive bitrate
+    TCHAR szPath[MAX_PATH];
+    GetCurrentDirectory(MAX_PATH, szPath);
     ostringstream oss;
-    oss << "G:\\Packaged Games\\414 Development Measure New Instance\\WindowsNoEditor\\MyProject414\\Binaries\\Win64\\test" << index << ".txt";
+    oss << szPath << "\\test" << index << ".txt";    
     ifstream fin;
 
     // Setup Nvidia Video Codec SDK
@@ -613,12 +612,9 @@ void NvIFREncoder::EncoderThreadProc(int index)
             // Adaptive bitrate - depends on other players
             float weight = (float)playerInputArray[index] / (float)sumWeight;
             targetBitrate = (int)(weight * totalBandwidthAvailable);
-
+            
             if (targetBitrate != currentBitrate)
             {
-                //NvIFREncoderLogFile.open("NvIFREncoderLogFile.txt", std::ios::app);
-                //NvIFREncoderLogFile << "Player " << index << " changing bitrate to = " << targetBitrate << ". Current bitrate = " << currentBitrate << "\n";
-                //NvIFREncoderLogFile.close();
                 nvEncoder.EncodeFrameLoop(bufferArray[index], true, index, targetBitrate);
                 currentBitrate = targetBitrate;
             }
@@ -632,9 +628,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
         {
             LOG_ERROR(logger, "NvIFRTransferRenderTargetToSys failed, res=" << res);
         }
-
-        // This improves FPS but thin client suffers from slightly jittery video
-        //std::this_thread::sleep_for(std::chrono::milliseconds(33));
 
         // This sleeps the thread if we are producing frames faster than the desired framerate
         int delta = (int)((dwTimeZero + ++uFrameCount * 1000 / STREAM_FRAME_RATE) - timeGetTime());
