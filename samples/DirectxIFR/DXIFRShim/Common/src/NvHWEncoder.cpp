@@ -15,6 +15,9 @@
 #include <fstream>
 #include <sstream>
 
+std::ofstream NvHWEncoderLogFile;
+
+
 NVENCSTATUS CNvHWEncoder::NvEncOpenEncodeSession(void* device, uint32_t deviceType)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
@@ -22,6 +25,9 @@ NVENCSTATUS CNvHWEncoder::NvEncOpenEncodeSession(void* device, uint32_t deviceTy
     nvStatus = m_pEncodeAPI->nvEncOpenEncodeSession(device, deviceType, &m_hEncoder);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncOpenEncodeSession\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -35,6 +41,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeGUIDCount(uint32_t* encodeGUIDCount)
     nvStatus = m_pEncodeAPI->nvEncGetEncodeGUIDCount(m_hEncoder, encodeGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetEncodeGUIDCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -48,6 +57,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeProfileGUIDCount(GUID encodeGUID, uint32
     nvStatus = m_pEncodeAPI->nvEncGetEncodeProfileGUIDCount(m_hEncoder, encodeGUID, encodeProfileGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetEncodeProfileGUIDCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -61,6 +73,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeProfileGUIDs(GUID encodeGUID, GUID* prof
     nvStatus = m_pEncodeAPI->nvEncGetEncodeProfileGUIDs(m_hEncoder, encodeGUID, profileGUIDs, guidArraySize, GUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetEncodeProfileGUIDs\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -74,6 +89,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeGUIDs(GUID* GUIDs, uint32_t guidArraySiz
     nvStatus = m_pEncodeAPI->nvEncGetEncodeGUIDs(m_hEncoder, GUIDs, guidArraySize, GUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetEncodeGUIDs\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -87,6 +105,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetInputFormatCount(GUID encodeGUID, uint32_t* in
     nvStatus = m_pEncodeAPI->nvEncGetInputFormatCount(m_hEncoder, encodeGUID, inputFmtCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetInputFormatCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -100,6 +121,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetInputFormats(GUID encodeGUID, NV_ENC_BUFFER_FO
     nvStatus = m_pEncodeAPI->nvEncGetInputFormats(m_hEncoder, encodeGUID, inputFmts, inputFmtArraySize, inputFmtCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetInputFormats\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -113,6 +137,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeCaps(GUID encodeGUID, NV_ENC_CAPS_PARAM*
     nvStatus = m_pEncodeAPI->nvEncGetEncodeCaps(m_hEncoder, encodeGUID, capsParam, capsVal);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->NvEncGetEncodeCaps\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -126,6 +153,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodePresetCount(GUID encodeGUID, uint32_t* e
     nvStatus = m_pEncodeAPI->nvEncGetEncodePresetCount(m_hEncoder, encodeGUID, encodePresetGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodePresetCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -139,6 +169,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodePresetGUIDs(GUID encodeGUID, GUID* prese
     nvStatus = m_pEncodeAPI->nvEncGetEncodePresetGUIDs(m_hEncoder, encodeGUID, presetGUIDs, guidArraySize, encodePresetGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodePresetGUIDs\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -152,6 +185,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodePresetConfig(GUID encodeGUID, GUID  pres
     nvStatus = m_pEncodeAPI->nvEncGetEncodePresetConfig(m_hEncoder, encodeGUID, presetGUID, presetConfig);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodePresetConfig\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -174,6 +210,9 @@ NVENCSTATUS CNvHWEncoder::NvEncCreateInputBuffer(uint32_t width, uint32_t height
     nvStatus = m_pEncodeAPI->nvEncCreateInputBuffer(m_hEncoder, &createInputBufferParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncCreateInputBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -191,6 +230,9 @@ NVENCSTATUS CNvHWEncoder::NvEncDestroyInputBuffer(NV_ENC_INPUT_PTR inputBuffer)
         nvStatus = m_pEncodeAPI->nvEncDestroyInputBuffer(m_hEncoder, inputBuffer);
         if (nvStatus != NV_ENC_SUCCESS)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "m_pEncodeAPI->nvEncDestroyInputBuffer\n";
+            NvHWEncoderLogFile.close();
             assert(0);
         }
     }
@@ -207,6 +249,9 @@ NVENCSTATUS CNvHWEncoder::NvEncCreateMVBuffer(uint32_t size, void** bitstreamBuf
     status = m_pEncodeAPI->nvEncCreateMVBuffer(m_hEncoder, &stAllocMVBuffer);
     if (status != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncCreateMVBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
     *bitstreamBuffer = stAllocMVBuffer.MVBuffer;
@@ -222,6 +267,9 @@ NVENCSTATUS CNvHWEncoder::NvEncDestroyMVBuffer(NV_ENC_OUTPUT_PTR bitstreamBuffer
     status = m_pEncodeAPI->nvEncDestroyMVBuffer(m_hEncoder, bitstreamBuffer);
     if (status != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncDestroyMVBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
     bitstreamBuffer = NULL;
@@ -272,6 +320,9 @@ NVENCSTATUS CNvHWEncoder::NvEncCreateBitstreamBuffer(uint32_t size, void** bitst
     nvStatus = m_pEncodeAPI->nvEncCreateBitstreamBuffer(m_hEncoder, &createBitstreamBufferParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncCreateBitstreamBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -289,6 +340,9 @@ NVENCSTATUS CNvHWEncoder::NvEncDestroyBitstreamBuffer(NV_ENC_OUTPUT_PTR bitstrea
         nvStatus = m_pEncodeAPI->nvEncDestroyBitstreamBuffer(m_hEncoder, bitstreamBuffer);
         if (nvStatus != NV_ENC_SUCCESS)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "m_pEncodeAPI->nvEncDestroyBitstreamBuffer\n";
+            NvHWEncoderLogFile.close();
             assert(0);
         }
     }
@@ -303,6 +357,9 @@ NVENCSTATUS CNvHWEncoder::NvEncLockBitstream(NV_ENC_LOCK_BITSTREAM* lockBitstrea
     nvStatus = m_pEncodeAPI->nvEncLockBitstream(m_hEncoder, lockBitstreamBufferParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncLockBitstream\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -316,6 +373,9 @@ NVENCSTATUS CNvHWEncoder::NvEncUnlockBitstream(NV_ENC_OUTPUT_PTR bitstreamBuffer
     nvStatus = m_pEncodeAPI->nvEncUnlockBitstream(m_hEncoder, bitstreamBuffer);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncUnlockBitstream\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -334,6 +394,9 @@ NVENCSTATUS CNvHWEncoder::NvEncLockInputBuffer(void* inputBuffer, void** bufferD
     nvStatus = m_pEncodeAPI->nvEncLockInputBuffer(m_hEncoder, &lockInputBufferParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncLockInputBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -350,6 +413,9 @@ NVENCSTATUS CNvHWEncoder::NvEncUnlockInputBuffer(NV_ENC_INPUT_PTR inputBuffer)
     nvStatus = m_pEncodeAPI->nvEncUnlockInputBuffer(m_hEncoder, inputBuffer);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncUnlockInputBuffer\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -363,6 +429,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetEncodeStats(NV_ENC_STAT* encodeStats)
     nvStatus = m_pEncodeAPI->nvEncGetEncodeStats(m_hEncoder, encodeStats);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodeStats\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -376,6 +445,9 @@ NVENCSTATUS CNvHWEncoder::NvEncGetSequenceParams(NV_ENC_SEQUENCE_PARAM_PAYLOAD* 
     nvStatus = m_pEncodeAPI->nvEncGetSequenceParams(m_hEncoder, sequenceParamPayload);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetSequenceParams\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -398,6 +470,9 @@ NVENCSTATUS CNvHWEncoder::NvEncRegisterAsyncEvent(void** completionEvent)
     nvStatus = m_pEncodeAPI->nvEncRegisterAsyncEvent(m_hEncoder, &eventParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncRegisterAsyncEvent\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -421,6 +496,9 @@ NVENCSTATUS CNvHWEncoder::NvEncUnregisterAsyncEvent(void* completionEvent)
         nvStatus = m_pEncodeAPI->nvEncUnregisterAsyncEvent(m_hEncoder, &eventParams);
         if (nvStatus != NV_ENC_SUCCESS)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "m_pEncodeAPI->nvEncUnregisterAsyncEvent\n";
+            NvHWEncoderLogFile.close();
             assert(0);
         }
     }
@@ -441,6 +519,9 @@ NVENCSTATUS CNvHWEncoder::NvEncMapInputResource(void* registeredResource, void**
     nvStatus = m_pEncodeAPI->nvEncMapInputResource(m_hEncoder, &mapInputResParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncMapInputResource\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -458,6 +539,9 @@ NVENCSTATUS CNvHWEncoder::NvEncUnmapInputResource(NV_ENC_INPUT_PTR mappedInputBu
         nvStatus = m_pEncodeAPI->nvEncUnmapInputResource(m_hEncoder, mappedInputBuffer);
         if (nvStatus != NV_ENC_SUCCESS)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "m_pEncodeAPI->nvEncUnmapInputResource\n";
+            NvHWEncoderLogFile.close();
             assert(0);
         }
     }
@@ -507,6 +591,9 @@ NVENCSTATUS CNvHWEncoder::NvEncOpenEncodeSessionEx(void* device, NV_ENC_DEVICE_T
     nvStatus = m_pEncodeAPI->nvEncOpenEncodeSessionEx(&openSessionExParams, &m_hEncoder);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncOpenEncodeSessionEx\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -531,6 +618,9 @@ NVENCSTATUS CNvHWEncoder::NvEncRegisterResource(NV_ENC_INPUT_RESOURCE_TYPE resou
     nvStatus = m_pEncodeAPI->nvEncRegisterResource(m_hEncoder, &registerResParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncRegisterResource\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -546,6 +636,9 @@ NVENCSTATUS CNvHWEncoder::NvEncUnregisterResource(NV_ENC_REGISTERED_PTR register
     nvStatus = m_pEncodeAPI->nvEncUnregisterResource(m_hEncoder, registeredRes);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncUnregisterResource\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
 
@@ -564,6 +657,9 @@ NVENCSTATUS CNvHWEncoder::NvEncReconfigureEncoder(const NvEncPictureCommand *pEn
             m_uCurHeight = pEncPicCommand->newHeight;
             if ((m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight))
             {
+                NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+                NvHWEncoderLogFile << "bResolutionChangePending NV_ENC_ERR_INVALID_PARAM\n";
+                NvHWEncoderLogFile.close();
                 return NV_ENC_ERR_INVALID_PARAM;
             }
             m_stCreateEncodeParams.encodeWidth = m_uCurWidth;
@@ -589,6 +685,9 @@ NVENCSTATUS CNvHWEncoder::NvEncReconfigureEncoder(const NvEncPictureCommand *pEn
         nvStatus = m_pEncodeAPI->nvEncReconfigureEncoder(m_hEncoder, &stReconfigParams);
         if (nvStatus != NV_ENC_SUCCESS)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "m_pEncodeAPI->nvEncReconfigureEncoder\n";
+            NvHWEncoderLogFile.close();
             assert(0);
         }
     }
@@ -608,6 +707,9 @@ CNvHWEncoder::CNvHWEncoder(int index)
     m_uCurHeight = 0;
     m_uMaxWidth = 0;
     m_uMaxHeight = 0;
+
+    NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::trunc);
+    NvHWEncoderLogFile.close();
 
     memset(&m_stCreateEncodeParams, 0, sizeof(m_stCreateEncodeParams));
     SET_VER(m_stCreateEncodeParams, NV_ENC_INITIALIZE_PARAMS);
@@ -646,6 +748,9 @@ NVENCSTATUS CNvHWEncoder::ValidateEncodeGUID (GUID inputCodecGuid)
     nvStatus = m_pEncodeAPI->nvEncGetEncodeGUIDCount(m_hEncoder, &encodeGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodeGUIDCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
         return nvStatus;
     }
@@ -657,6 +762,9 @@ NVENCSTATUS CNvHWEncoder::ValidateEncodeGUID (GUID inputCodecGuid)
     nvStatus = m_pEncodeAPI->nvEncGetEncodeGUIDs(m_hEncoder, encodeGUIDArray, encodeGUIDCount, &encodeGUIDArraySize);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodeGUIDs\n";
+        NvHWEncoderLogFile.close();
         delete[] encodeGUIDArray;
         assert(0);
         return nvStatus;
@@ -677,9 +785,16 @@ NVENCSTATUS CNvHWEncoder::ValidateEncodeGUID (GUID inputCodecGuid)
     delete[] encodeGUIDArray;
 
     if (codecFound)
+    {
         return NV_ENC_SUCCESS;
+    }
     else
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "codecFound NV_ENC_ERR_INVALID_PARAM\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
+    }
 }
 
 NVENCSTATUS CNvHWEncoder::ValidatePresetGUID(GUID inputPresetGuid, GUID inputCodecGuid)
@@ -691,6 +806,9 @@ NVENCSTATUS CNvHWEncoder::ValidatePresetGUID(GUID inputPresetGuid, GUID inputCod
     nvStatus = m_pEncodeAPI->nvEncGetEncodePresetCount(m_hEncoder, inputCodecGuid, &presetGUIDCount);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodePresetCount\n";
+        NvHWEncoderLogFile.close();
         assert(0);
         return nvStatus;
     }
@@ -702,6 +820,9 @@ NVENCSTATUS CNvHWEncoder::ValidatePresetGUID(GUID inputPresetGuid, GUID inputCod
     nvStatus = m_pEncodeAPI->nvEncGetEncodePresetGUIDs(m_hEncoder, inputCodecGuid, presetGUIDArray, presetGUIDCount, &presetGUIDArraySize);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncGetEncodePresetGUIDs\n";
+        NvHWEncoderLogFile.close();
         assert(0);
         delete[] presetGUIDArray;
         return nvStatus;
@@ -722,22 +843,27 @@ NVENCSTATUS CNvHWEncoder::ValidatePresetGUID(GUID inputPresetGuid, GUID inputCod
     delete[] presetGUIDArray;
 
     if (presetFound)
+    {
         return NV_ENC_SUCCESS;
+    }
     else
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "presetFound: NV_ENC_ERR_INVALID_PARAM\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
+    }
 }
 
 NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
 {
     NVENCSTATUS nvStatus = NV_ENC_SUCCESS;
 
-    std::ofstream NvEncoderLogFile;
-
     if (pEncCfg == NULL)
     {
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "pEncCfg == NULL. NV_ENC_ERR_INVALID_PARAM\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "pEncCfg == NULL. NV_ENC_ERR_INVALID_PARAM\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -748,9 +874,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
     m_uMaxHeight = (pEncCfg->maxHeight > 0 ? pEncCfg->maxHeight : pEncCfg->height);
 
     if ((m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight)) {
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -759,7 +885,7 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
     std::stringstream *StringStream = new std::stringstream();
     *StringStream << "ffmpeg " \
                 "-i - " \
-                "-listen 1 -vcodec copy -preset ultrafast " \
+                "-listen 1 -threads 1 -vcodec copy -preset ultrafast " \
                 "-an -tune zerolatency " \
                 "-f h264 http://magam001.d1.comp.nus.edu.sg:" << 30000 + index << " 2> FFmpegLog" << index << ".txt";
     //*StringStream << "ffmpeg " \
@@ -772,18 +898,18 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
 
     if (!pEncCfg->width || !pEncCfg->height || !m_fOutputArray[index])
     {
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "(m_uCurWidth > m_uMaxWidth) || (m_uCurHeight > m_uMaxHeight). NV_ENC_ERR_INVALID_PARAM\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
     if (pEncCfg->isYuv444 && (pEncCfg->codec == NV_ENC_HEVC))
     {
         PRINTERR("444 is not supported with HEVC \n");
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "444 is not supported with HEVC\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "444 is not supported with HEVC\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -792,9 +918,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("codec not supported \n");
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "codec not supported\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "codec not supported\n";
+        NvHWEncoderLogFile.close();
         return nvStatus;
     }
 
@@ -831,9 +957,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("nvEncGetEncodePresetConfig returned failure");
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "nvEncGetEncodePresetConfig returned failure\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "nvEncGetEncodePresetConfig returned failure\n";
+        NvHWEncoderLogFile.close();
         return nvStatus;
     }
     memcpy(&m_stEncodeConfig, &stPresetCfg.presetCfg, sizeof(NV_ENC_CONFIG));
@@ -883,7 +1009,6 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
             m_stEncodeConfig.rcParams.initialRCQP.qpIntra = pEncCfg->qp;
             m_stEncodeConfig.rcParams.initialRCQP.qpInterB = pEncCfg->qp;
         }
-
     }
 
     if (pEncCfg->isYuv444)
@@ -940,9 +1065,9 @@ NVENCSTATUS CNvHWEncoder::CreateEncoder(const EncodeConfig *pEncCfg, int index)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         PRINTERR("Encode Session Initialization failed");
-        NvEncoderLogFile.open("NvEncoderLogFile.txt", std::ios::app);
-        NvEncoderLogFile << "Encode Session Initialization failed (m_pEncodeAPI->nvEncInitializeEncoder)\n";
-        NvEncoderLogFile.close();
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "Encode Session Initialization failed (m_pEncodeAPI->nvEncInitializeEncoder)\n";
+        NvHWEncoderLogFile.close();
         return nvStatus;
     }
     m_bEncoderInitialized = true;
@@ -978,7 +1103,12 @@ GUID CNvHWEncoder::GetPresetGUID(char* encoderPreset, int codec)
     else
     {
         if (encoderPreset)
+        {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "Unsupported preset guid\n";
+            NvHWEncoderLogFile.close();
             PRINTERR("Unsupported preset guid %s\n", encoderPreset);
+        }
         presetGUID = NV_ENC_PRESET_DEFAULT_GUID;
     }
 
@@ -987,6 +1117,9 @@ GUID CNvHWEncoder::GetPresetGUID(char* encoderPreset, int codec)
     if (nvStatus != NV_ENC_SUCCESS)
     {
         presetGUID = NV_ENC_PRESET_DEFAULT_GUID;
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "ValidatePresetGUID fail\n";
+        NvHWEncoderLogFile.close();
         PRINTERR("Unsupported preset guid %s\n", encoderPreset);
     }
 
@@ -999,6 +1132,9 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer, int i
 
     if (pEncodeBuffer->stOutputBfr.hBitstreamBuffer == NULL && pEncodeBuffer->stOutputBfr.bEOSFlag == FALSE)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "pEncodeBuffer->stOutputBfr.hBitstreamBuffer == NULL && pEncodeBuffer->stOutputBfr.bEOSFlag == FALSE fail\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_INVALID_PARAM;
     }
 
@@ -1006,6 +1142,9 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer, int i
     {
         if (!pEncodeBuffer->stOutputBfr.hOutputEvent)
         {
+            NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+            NvHWEncoderLogFile << "pEncodeBuffer->stOutputBfr.hOutputEvent\n";
+            NvHWEncoderLogFile.close();
             return NV_ENC_ERR_INVALID_PARAM;
         }
 #if defined(NV_WINDOWS)
@@ -1021,7 +1160,7 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer, int i
     memset(&lockBitstreamData, 0, sizeof(lockBitstreamData));
     SET_VER(lockBitstreamData, NV_ENC_LOCK_BITSTREAM);
     lockBitstreamData.outputBitstream = pEncodeBuffer->stOutputBfr.hBitstreamBuffer;
-    lockBitstreamData.doNotWait = false;
+    lockBitstreamData.doNotWait = true;// false;
 
     nvStatus = m_pEncodeAPI->nvEncLockBitstream(m_hEncoder, &lockBitstreamData);
     if (nvStatus == NV_ENC_SUCCESS)
@@ -1031,6 +1170,9 @@ NVENCSTATUS CNvHWEncoder::ProcessOutput(const EncodeBuffer *pEncodeBuffer, int i
     }
     else
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "lock bitstream function failed\n";
+        NvHWEncoderLogFile.close();
         PRINTERR("lock bitstream function failed \n");
     }
 
@@ -1052,7 +1194,12 @@ NVENCSTATUS CNvHWEncoder::Initialize(void* device, NV_ENC_DEVICE_TYPE deviceType
     m_hinstLib = dlopen("libnvidia-encode.so.1", RTLD_LAZY);
 #endif
     if (m_hinstLib == NULL)
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "NV_ENC_ERR_OUT_OF_MEMORY\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_OUT_OF_MEMORY;
+    }
 
 #if defined(NV_WINDOWS)
     nvEncodeAPICreateInstance = (MYPROC)GetProcAddress(m_hinstLib, "NvEncodeAPICreateInstance");
@@ -1061,21 +1208,41 @@ NVENCSTATUS CNvHWEncoder::Initialize(void* device, NV_ENC_DEVICE_TYPE deviceType
 #endif
 
     if (nvEncodeAPICreateInstance == NULL)
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "NV_ENC_ERR_OUT_OF_MEMORY 2\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_OUT_OF_MEMORY;
+    }
 
     m_pEncodeAPI = new NV_ENCODE_API_FUNCTION_LIST;
     if (m_pEncodeAPI == NULL)
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "NV_ENC_ERR_OUT_OF_MEMORY 3\n";
+        NvHWEncoderLogFile.close();
         return NV_ENC_ERR_OUT_OF_MEMORY;
+    }
 
     memset(m_pEncodeAPI, 0, sizeof(NV_ENCODE_API_FUNCTION_LIST));
     m_pEncodeAPI->version = NV_ENCODE_API_FUNCTION_LIST_VER;
     nvStatus = nvEncodeAPICreateInstance(m_pEncodeAPI);
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "nvEncodeAPICreateInstance\n";
+        NvHWEncoderLogFile.close();
         return nvStatus;
+    }
 
     nvStatus = NvEncOpenEncodeSessionEx(device, deviceType);
     if (nvStatus != NV_ENC_SUCCESS)
+    {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "NvEncOpenEncodeSessionEx\n";
+        NvHWEncoderLogFile.close();
         return nvStatus;
+    }
 
     return NV_ENC_SUCCESS;
 }
@@ -1125,6 +1292,9 @@ NVENCSTATUS CNvHWEncoder::NvEncEncodeFrame(EncodeBuffer *pEncodeBuffer, NvEncPic
     nvStatus = m_pEncodeAPI->nvEncEncodePicture(m_hEncoder, &encPicParams);
     if (nvStatus != NV_ENC_SUCCESS && nvStatus != NV_ENC_ERR_NEED_MORE_INPUT)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncEncodePicture\n";
+        NvHWEncoderLogFile.close();
         assert(0);
         return nvStatus;
     }
@@ -1145,6 +1315,9 @@ NVENCSTATUS CNvHWEncoder::NvEncFlushEncoderQueue(void *hEOSEvent)
     nvStatus = m_pEncodeAPI->nvEncEncodePicture(m_hEncoder, &encPicParams);
     if (nvStatus != NV_ENC_SUCCESS)
     {
+        NvHWEncoderLogFile.open("NvHWEncoderLogFile.txt", std::ios::app);
+        NvHWEncoderLogFile << "m_pEncodeAPI->nvEncEncodePicture 2\n";
+        NvHWEncoderLogFile.close();
         assert(0);
     }
     return nvStatus;
