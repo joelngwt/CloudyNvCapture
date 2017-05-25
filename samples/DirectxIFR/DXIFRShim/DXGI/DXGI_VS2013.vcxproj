@@ -198,6 +198,7 @@
     <ClCompile Include="..\Common\src\dynlink_cuda.cpp" />
     <ClCompile Include="..\Common\src\NvHWEncoder.cpp" />
     <ClCompile Include="DXGI.cpp" />
+    <ClCompile Include="FFmpegAPI.cpp" />
     <ClCompile Include="IDXGIFactory.cpp" />
     <ClCompile Include="IDXGIFactory1.cpp" />
     <ClCompile Include="IDXGISwapChain.cpp" />
@@ -213,6 +214,7 @@
     <ClInclude Include="..\Common\Streamer.h" />
     <ClInclude Include="..\Common\StreamerFile.h" />
     <ClInclude Include="..\Common\Util4Streamer.h" />
+    <ClInclude Include="FFmpegAPI.h" />
     <ClInclude Include="IDXGIFactory.h" />
     <ClInclude Include="IDXGIFactory1.h" />
     <ClInclude Include="IDXGISwapChain.h" />
