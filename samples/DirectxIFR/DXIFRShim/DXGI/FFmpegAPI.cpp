@@ -1,6 +1,10 @@
 #include "FFmpegAPI.h"
 
 #include <string>
+#include <iostream>
+#include <fstream>
+
+std::ofstream FFmpegAPILogFile;
 
 CFFmpegAPI::CFFmpegAPI()
 {
@@ -40,6 +44,9 @@ int CFFmpegAPI::MainFunction()
     if ((ret = avformat_find_stream_info(m_informat, 0))< 0)
     {
         av_strerror(ret, errbuf, sizeof(errbuf));
+        FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+        FFmpegAPILogFile << "Not Able to find stream info.\n";
+        FFmpegAPILogFile.close();
         printf("Not Able to find stream info:: ");
             ret = -1;
         return ret;
@@ -50,6 +57,9 @@ int CFFmpegAPI::MainFunction()
         if (m_informat->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             printf("Found Video Stream ");
+            FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+            FFmpegAPILogFile << "Found Video Stream.\n";
+            FFmpegAPILogFile.close();
             m_in_vid_strm_idx = i;
             m_in_vid_strm = m_informat->streams[i];
         }
@@ -58,11 +68,14 @@ int CFFmpegAPI::MainFunction()
     // 4. Create ouputfile  and allocate output format.
 
     AVOutputFormat *outfmt = NULL;
-    std::string outfile = std::string(filename) + "clip_out.ts";
+    std::string outfile = std::string(filename) + "clip_out.avi";
     outfmt = av_guess_format(NULL, outfile.c_str(), NULL);
     if (outfmt == NULL)
     {
         ret = -1;
+        FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+        FFmpegAPILogFile << "outfmt == NULL.\n";
+        FFmpegAPILogFile.close();
         return ret;
     }
     else
@@ -71,67 +84,77 @@ int CFFmpegAPI::MainFunction()
         if (m_outformat)
         {
             m_outformat->oformat = outfmt;
-            _snprintf(m_outformat->filename,
-                sizeof(m_outformat->filename),
-                "%s", outfile.c_str());
+            _snprintf(m_outformat->filename, sizeof(m_outformat->filename), "%s", outfile.c_str());
         }
         else
         {
             ret = -1;
+            FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+            FFmpegAPILogFile << "m_outformat == NULL.\n";
+            FFmpegAPILogFile.close();
             return ret;
         }
     }
 
     //5. Add audio and video stream to output format.
 
-    AVCodec *out_vid_codec, *out_aud_codec;
-    out_vid_codec = out_aud_codec = NULL;
+    AVCodec *out_vid_codec;
+    out_vid_codec = NULL;
 
     if (outfmt->video_codec != AV_CODEC_ID_NONE && m_in_vid_strm != NULL)
     {
         out_vid_codec = avcodec_find_encoder(outfmt->video_codec);
         if (NULL == out_vid_codec)
         {
+            FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+            FFmpegAPILogFile << "Could Not Find Vid Encoder.\n";
+            FFmpegAPILogFile.close();
             printf("Could Not Find Vid Encoder");
-                ret = -1;
+            ret = -1;
             return ret;
         }
         else
         {
             printf("Found Out Vid Encoder ");
-                m_out_vid_strm = avformat_new_stream(m_outformat, out_vid_codec);
+            m_out_vid_strm = avformat_new_stream(m_outformat, out_vid_codec);
             if (NULL == m_out_vid_strm)
             {
+                FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+                FFmpegAPILogFile << "Failed to Allocate Output Vid Strm.\n";
+                FFmpegAPILogFile.close();
                 printf("Failed to Allocate Output Vid Strm ");
-                    ret = -1;
+                ret = -1;
                 return ret;
             }
             else
             {
                 printf("Allocated Video Stream ");
-                    if (avcodec_copy_context(m_out_vid_strm->codec,
-                        m_informat->streams[m_in_vid_strm_idx]->codec) != 0)
-                    {
-                        printf("Failed to Copy Context ");
-                        ret = -1;
-                        return ret;
-                    }
-                    else
-                    {
-                        m_out_vid_strm->sample_aspect_ratio.den = m_out_vid_strm->codec->sample_aspect_ratio.den;
-                        m_out_vid_strm->sample_aspect_ratio.num = m_in_vid_strm->codec->sample_aspect_ratio.num;
-                        printf("Copied Context ");
-                        m_out_vid_strm->codec->codec_id = m_in_vid_strm->codec->codec_id;
-                        m_out_vid_strm->codec->time_base.num = 1;
-                        m_out_vid_strm->codec->time_base.den = m_fps*(m_in_vid_strm->codec->ticks_per_frame);
-                        m_out_vid_strm->time_base.num = 1;
-                        m_out_vid_strm->time_base.den = 1000;
-                        m_out_vid_strm->r_frame_rate.num = m_fps;
-                        m_out_vid_strm->r_frame_rate.den = 1;
-                        m_out_vid_strm->avg_frame_rate.den = 1;
-                        m_out_vid_strm->avg_frame_rate.num = m_fps;
-                        //m_out_vid_strm->duration = (m_out_end_time - m_out_start_time) * 1000;
-                    }
+                if (avcodec_copy_context(m_out_vid_strm->codec,
+                    m_informat->streams[m_in_vid_strm_idx]->codec) != 0)
+                {
+                    FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+                    FFmpegAPILogFile << "Failed to Copy Context.\n";
+                    FFmpegAPILogFile.close();
+                    printf("Failed to Copy Context ");
+                    ret = -1;
+                    return ret;
+                }
+                else
+                {
+                    m_out_vid_strm->sample_aspect_ratio.den = m_out_vid_strm->codec->sample_aspect_ratio.den;
+                    m_out_vid_strm->sample_aspect_ratio.num = m_in_vid_strm->codec->sample_aspect_ratio.num;
+                    printf("Copied Context ");
+                    m_out_vid_strm->codec->codec_id = m_in_vid_strm->codec->codec_id;
+                    m_out_vid_strm->codec->time_base.num = 1;
+                    m_out_vid_strm->codec->time_base.den = m_fps*(m_in_vid_strm->codec->ticks_per_frame);
+                    m_out_vid_strm->time_base.num = 1;
+                    m_out_vid_strm->time_base.den = 1000;
+                    m_out_vid_strm->r_frame_rate.num = m_fps;
+                    m_out_vid_strm->r_frame_rate.den = 1;
+                    m_out_vid_strm->avg_frame_rate.den = 1;
+                    m_out_vid_strm->avg_frame_rate.num = m_fps;
+                    //m_out_vid_strm->duration = (m_out_end_time - m_out_start_time) * 1000;
+                }
             }
         }
     }
@@ -141,16 +164,22 @@ int CFFmpegAPI::MainFunction()
     {
         if (avio_open2(&m_outformat->pb, outfile.c_str(), AVIO_FLAG_WRITE, NULL, NULL) < 0)
         {
+            FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+            FFmpegAPILogFile << "Could Not Open File.\n";
+            FFmpegAPILogFile.close();
             printf("Could Not Open File ");
-                ret = -1;
+            ret = -1;
             return ret;
         }
     }
     /* Write the stream header, if any. */
     if (avformat_write_header(m_outformat, NULL) < 0)
     {
+        FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+        FFmpegAPILogFile << "Error Occurred While Writing Header.\n";
+        FFmpegAPILogFile.close();
         printf("Error Occurred While Writing Header ");
-            ret = -1;
+        ret = -1;
         return ret;
     }
     else
@@ -202,6 +231,9 @@ int CFFmpegAPI::MainFunction()
             //last_vid_pts = vid_pts;
             if (av_interleaved_write_frame(m_outformat, &outpkt) < 0)
             {
+                FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+                FFmpegAPILogFile << "Failed Video Write.\n";
+                FFmpegAPILogFile.close();
                 printf("Failed Video Write ");
             }
             else
@@ -213,6 +245,9 @@ int CFFmpegAPI::MainFunction()
         }
         else
         {
+            FFmpegAPILogFile.open("FFmpegAPILogFile.txt", std::ios::app);
+            FFmpegAPILogFile << "Got Unknown Pkt.\n";
+            FFmpegAPILogFile.close();
             printf("Got Unknown Pkt ");
                 //num_unkwn_pkt++;
         }
