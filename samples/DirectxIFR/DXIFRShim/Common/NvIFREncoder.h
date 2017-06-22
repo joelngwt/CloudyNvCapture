@@ -46,9 +46,8 @@ public:
 		bKeyedMutex(bKeyedMutex), 
 		pAppParam(pAppParam), pStreamer(pStreamer),
 		bStopEncoder(TRUE), pIFR(NULL), hSharedTexture(NULL),
-		nFrameRate(25),
 		szClassName("NvIFREncoder"),
-		pBitStreamBuffer(NULL), hevtEncodeComplete(NULL),
+		pBitStreamBuffer(NULL),
 		bInitEncoderSuccessful(FALSE), hevtInitEncoderDone(NULL), hthEncoder(NULL), hevtStopEncoder(NULL)
 	{}
 	virtual ~NvIFREncoder() 
@@ -61,7 +60,7 @@ public:
 	}
 
 public:
-	virtual BOOL StartEncoder(int index);
+	virtual BOOL StartEncoder(int index, int windowWidth, int windowHeight);
 	virtual void StopEncoder();
 	BOOL CheckSize(int nWidth, int nHeight) {
 		return this->nWidth == nWidth && this->nHeight == nHeight;
@@ -94,7 +93,6 @@ protected:
 
 private:
 	void EncoderThreadProc(int index);
-	void SetupFFMPEGServer(int playerIndex);
 
 	static void EncoderThreadStartProc(void *args) 
 	{
@@ -157,7 +155,7 @@ protected:
 		D3D10_MAPPED_TEXTURE2D mappedTexture;
 		HRESULT hr = pCommitTextureX->Map(0, D3D10_MAP_READ, 0, &mappedTexture);
 		if (FAILED(hr)) {
-			LOG_ERROR(logger, "Map hr=" << hr);
+			LOG_ERROR(logger, "Map hr d10 =" << hr);
 			return FALSE;
 		}
 		BYTE c = *(BYTE*)mappedTexture.pData;
@@ -173,7 +171,7 @@ protected:
 		D3D11_MAPPED_SUBRESOURCE mappedTexture;
 		HRESULT hr = pContextX->Map(pCommitTextureX, 0, D3D11_MAP_READ, 0, &mappedTexture);
 		if (FAILED(hr)) {
-			LOG_ERROR(logger, "Map hr=" << hr);
+			LOG_ERROR(logger, "Map hr d11 =" << hr);
 			return FALSE;
 		}
 		BYTE c = *(BYTE*)mappedTexture.pData;
@@ -183,7 +181,6 @@ protected:
 	}
 
 private:
-	const int nFrameRate;
 	const char *szClassName;
 	const void *pPresenter;
 
@@ -193,7 +190,6 @@ private:
 	HANDLE FFMPEGThread;
 
 	BYTE *pBitStreamBuffer;
-	HANDLE hevtEncodeComplete;
 
 	BOOL bInitEncoderSuccessful;
 	HANDLE hevtInitEncoderDone;

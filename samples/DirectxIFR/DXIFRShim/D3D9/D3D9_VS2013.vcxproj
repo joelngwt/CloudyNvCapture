@@ -165,6 +165,9 @@
   <ItemGroup>
     <ClCompile Include="..\Common\AppParam.cpp" />
     <ClCompile Include="..\Common\NvIFREncoder.cpp" />
+    <ClCompile Include="..\Common\src\dynlink_cuda.cpp" />
+    <ClCompile Include="..\Common\src\NvHWEncoder.cpp" />
+    <ClCompile Include="..\DXGI\NvEncoder.cpp" />
     <ClCompile Include="D3D9.cpp" />
     <ClCompile Include="IDirect3D9.cpp" />
     <ClCompile Include="IDirect3D9Ex.cpp" />
@@ -182,6 +185,7 @@
     <ClInclude Include="..\Common\Streamer.h" />
     <ClInclude Include="..\Common\StreamerFile.h" />
     <ClInclude Include="..\Common\Util4Streamer.h" />
+    <ClInclude Include="..\DXGI\NvEncoder.h" />
     <ClInclude Include="IDirect3D9.h" />
     <ClInclude Include="IDirect3D9Ex.h" />
     <ClInclude Include="IDirect3DDevice9.h" />

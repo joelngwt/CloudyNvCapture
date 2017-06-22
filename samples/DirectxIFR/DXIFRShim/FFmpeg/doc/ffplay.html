@@ -1,6 +1,6 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-<!-- Created by GNU Texinfo 5.2, http://www.gnu.org/software/texinfo/ -->
+<!-- Created by GNU Texinfo 6.1, http://www.gnu.org/software/texinfo/ -->
   <head>
     <meta charset="utf-8">
     <title>
@@ -47,7 +47,7 @@
 <a name="Synopsis"></a>
 <h2 class="chapter">1 Synopsis<span class="pull-right"><a class="anchor hidden-xs" href="#Synopsis" aria-hidden="true">#</a> <a class="anchor hidden-xs"href="#toc-Synopsis" aria-hidden="true">TOC</a></span></h2>
 
-<p>ffplay [<var>options</var>] [<samp>input_file</samp>]
+<p>ffplay [<var>options</var>] [<samp>input_url</samp>]
 </p>
 <a name="Description"></a>
 <h2 class="chapter">2 Description<span class="pull-right"><a class="anchor hidden-xs" href="#Description" aria-hidden="true">#</a> <a class="anchor hidden-xs"href="#toc-Description" aria-hidden="true">TOC</a></span></h2>
@@ -186,6 +186,14 @@ for encoders, decoders, demuxers, muxers, filters, etc.
 </dd>
 <dt><samp>-formats</samp></dt>
 <dd><p>Show available formats (including devices).
+</p>
+</dd>
+<dt><samp>-demuxers</samp></dt>
+<dd><p>Show available demuxers.
+</p>
+</dd>
+<dt><samp>-muxers</samp></dt>
+<dd><p>Show available muxers.
 </p>
 </dd>
 <dt><samp>-devices</samp></dt>
@@ -550,6 +558,14 @@ see <a href="ffmpeg-utils.html#time-duration-syntax">(ffmpeg-utils)the Time dura
 <dt><samp>-nodisp</samp></dt>
 <dd><p>Disable graphical display.
 </p></dd>
+<dt><samp>-noborder</samp></dt>
+<dd><p>Borderless window.
+</p></dd>
+<dt><samp>-volume</samp></dt>
+<dd><p>Set the startup volume. 0 means silence, 100 means no volume reduction or
+amplification. Negative values are treated as 0, values above 100 are treated
+as 100.
+</p></dd>
 <dt><samp>-f <var>fmt</var></samp></dt>
 <dd><p>Force format.
 </p></dd>
@@ -603,8 +619,8 @@ Use the option &quot;-filters&quot; to show all the available filters (including
 sources and sinks).
 </p>
 </dd>
-<dt><samp>-i <var>input_file</var></samp></dt>
-<dd><p>Read <var>input_file</var>.
+<dt><samp>-i <var>input_url</var></samp></dt>
+<dd><p>Read <var>input_url</var>.
 </p></dd>
 </dl>
 
