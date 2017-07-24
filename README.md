@@ -7,8 +7,6 @@ A 64-bit machine running a 64-bit application is assumed in these instructions.
 3. Change the IP address to the IP address of the machine you want to stream from.
 4. Search for the `firstPort` variable. 
 5. Change the port to the port you want to stream from. Note that this is the first port. Additional players use the next port following it.
-6. Search for the `bufferWidth` and `bufferHeight` variables.
-7. Change the parameters as necessary for your application. This should match the size of the game window for optimal quality. 
 
 ## Compiling DXIFRShim
 1. Open DXIFRShim_VS2013.sln.
