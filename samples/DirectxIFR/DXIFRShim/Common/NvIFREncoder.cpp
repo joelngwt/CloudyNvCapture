@@ -495,8 +495,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
     DWORD dwTimeZero = timeGetTime();
 
     char c = '0';
-    std::streampos fileSize = 0;
-    std::streampos prevFileSize = 0;
     int timeBeforeIdle = 3;
     bool isIdling = false;
     time_t shootingStartTime = std::time(0);
@@ -518,13 +516,13 @@ void NvIFREncoder::EncoderThreadProc(int index)
         fin.open(oss.str());
         if (fin.is_open())
         {
+            // Always read the value at the end of the file
             fin.seekg(-3, ios::end); // -1 and -2 gets \n on the last line
-            fileSize = fin.tellg();
             fin.get(c);
             fin.close();
         
             // If we shoot, we should refresh the shooting start time
-            if (c == '3' && fileSize != prevFileSize)
+            if (c == '3')
             {
                 shootingStartTime = std::time(0);
             }
@@ -535,7 +533,7 @@ void NvIFREncoder::EncoderThreadProc(int index)
                 c = '3';
             }
             // No input from player - is idling
-            else if (fileSize == prevFileSize)
+            else if (c == '1')
             {
                 if (isIdling == false)
                 {
@@ -554,8 +552,6 @@ void NvIFREncoder::EncoderThreadProc(int index)
             {
                 isIdling = false; // There is input. 
             }
-        
-            prevFileSize = fileSize;
         
             playerInputArray[index] = (c - '0');
         }
