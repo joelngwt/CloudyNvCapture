@@ -2,7 +2,7 @@
 A 64-bit machine running a 64-bit application is assumed in these instructions.
 
 ## Configuring DXIFRShim
-1. Open NvIFREncoder.cpp.
+1. Open NvHWEncoder.cpp.
 2. Search for the `streamingIP` variable.
 3. Change the IP address to the IP address of the machine you want to stream from.
 4. Search for the `firstPort` variable. 
