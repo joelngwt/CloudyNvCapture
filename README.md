@@ -16,8 +16,8 @@ A 64-bit machine running a 64-bit application is assumed in these instructions.
 ## Using DXIFRShim
 1. Make a copy of the dxgi.dll file that are in the system32 folder.
 2. Rename the dxgi.dll file in the system32 folder to _dxgi.dll. You should now have dxgi.dll and _dxgi.dll in the system32 folder.
-3. Download the FFmpeg .dll files from [Zeranoe](https://ffmpeg.zeranoe.com/builds/). Use the 64-bit shared version. If the latest build does not work due to deprecated functions, use the 20161101 version [here](https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-20161101-60178e7-win64-shared.zip).
-4. Place all the .dll files from the /bin folder into system32.
+3. Download the FFmpeg.exe files from [Zeranoe](https://ffmpeg.zeranoe.com/builds/). Use the 64-bit static version. 
+4. Place the FFmpeg.exe file somewhere where it will not be moved, then add the directory into your system environment variables.
 5. After compiling the DXIFRShim solution, you should have your own dxgi.dll file. Place them together with the game executable (.exe)*.
 6. Launch the game .exe file.
 
