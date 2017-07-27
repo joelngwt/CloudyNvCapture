@@ -14,14 +14,16 @@ A 64-bit machine running a 64-bit application is assumed in these instructions.
 3. Build solution.
 
 ## Using DXIFRShim
-1. Make a copy of the d3d9.dll an dxgi.dll files that are in the system32 folder.
-2. Rename one of the d3d9.dll and dxgi.dll files in the system32 folder to _d3d9.dll and _dxgi.dll. You should now have d3d9.dll, _d3d9.dll, dxgi.dll, and _dxgi.dll in the system32 folder.
+1. Make a copy of the dxgi.dll file that are in the system32 folder.
+2. Rename the dxgi.dll file in the system32 folder to _dxgi.dll. You should now have dxgi.dll and _dxgi.dll in the system32 folder.
 3. Download the FFmpeg .dll files from [Zeranoe](https://ffmpeg.zeranoe.com/builds/). Use the 64-bit shared version. If the latest build does not work due to deprecated functions, use the 20161101 version [here](https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-20161101-60178e7-win64-shared.zip).
 4. Place all the .dll files from the /bin folder into system32.
-5. After compiling the DXIFRShim solution, you should have your own d3d9.dll and dxgi.dll files. Place them together with the game executable (.exe).
+5. After compiling the DXIFRShim solution, you should have your own dxgi.dll file. Place them together with the game executable (.exe)*.
 6. Launch the game .exe file.
 
-> WARNING: If you do not have a working set of the two .dll files in system32 and you log out of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
+*Some game .exe files are tricky. Find the one that actually runs. It might not be the same one you use to launch the game.
+
+> WARNING: If you do not have a working .dll file in system32 and you log out of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
 
 # NvFBCToSys
 ## Configuring NvFBCToSys
