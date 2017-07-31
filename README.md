@@ -21,7 +21,7 @@ A 64-bit machine running a 64-bit application is assumed in these instructions.
 5. After compiling the DXIFRShim solution, you should have your own dxgi.dll file. Place them together with the game executable (.exe)*.
 6. Launch the game .exe file.
 
-*Some game .exe files are tricky. Find the one that actually runs. It might not be the same one you use to launch the game.
+*Some game .exe files are tricky. Find the one that actually runs. It might not be the same one you use to launch the game. In the case of packaged Unreal Engine games, you should put it in `\WindowsNoEditor\ProjectName\Binaries\Win64`
 
 > WARNING: If you do not have a working .dll file in system32 and you log out of Windows, you will not be able to log back in. The only way to recover from this is a system restore.
 
